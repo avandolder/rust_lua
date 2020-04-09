@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::token::{Kind, Token, KEYWORDS};
+use crate::token::{TokenType, Token, KEYWORDS};
 
 struct Lexer<'a> {
     src: &'a [char],
@@ -9,7 +9,7 @@ struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     fn next_token(&mut self) -> Option<Token> {
-        use Kind::*;
+        use TokenType::*;
 
         // Skip leading comments or whitespace.
         loop {
@@ -20,7 +20,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let kind = match self.src {
+        let ty = match self.src {
             ['0', 'X', ..] | ['0', 'x', ..] => todo!("Scan hexadecimal number"),
             [c, ..] if c.is_ascii_digit() => self.scan_number(),
             ['.', c, ..] if c.is_ascii_digit() => self.scan_number(),
@@ -63,10 +63,10 @@ impl<'a> Lexer<'a> {
             [] => return None,
         };
 
-        self.src = &self.src[kind.length()..];
+        self.src = &self.src[ty.length()..];
 
         Some(Token {
-            kind,
+            ty,
             line: self.line,
         })
     }
@@ -91,7 +91,7 @@ impl<'a> Lexer<'a> {
         self.line += 1;
     }
 
-    fn scan_name(&self) -> Kind {
+    fn scan_name(&self) -> TokenType {
         let name = self
             .src
             .iter()
@@ -101,10 +101,10 @@ impl<'a> Lexer<'a> {
         KEYWORDS
             .get(name.as_str())
             .cloned()
-            .unwrap_or(Kind::Name(name))
+            .unwrap_or(TokenType::Name(name))
     }
 
-    fn scan_string(&self) -> Kind {
+    fn scan_string(&self) -> TokenType {
         // Build up the closing sequence for the string from the opening sequence.
         let closer = self.src[0];
 
@@ -140,10 +140,10 @@ impl<'a> Lexer<'a> {
         }
 
         // Add 2 to account for opening and closing quotes.
-        Kind::Str(string, size + 2)
+        TokenType::Str(string, size + 2)
     }
 
-    fn scan_number(&self) -> Kind {
+    fn scan_number(&self) -> TokenType {
         let mut num = self.scan_digits(0);
 
         if self.src[num.len()] == '.' {
@@ -168,7 +168,7 @@ impl<'a> Lexer<'a> {
             _ => (),
         }
 
-        Kind::Num(num.parse::<f64>().unwrap(), num.len())
+        TokenType::Num(num.parse::<f64>().unwrap(), num.len())
     }
 
     fn scan_digits(&self, offset: usize) -> String {

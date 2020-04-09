@@ -5,7 +5,7 @@ use maplit::hashmap;
 
 #[rustfmt::skip]
 #[derive(Clone, Debug)]
-pub enum Kind {
+pub enum TokenType {
     EQ, NEQ, GTE, LTE, GT, LT,
 
     Add, Sub, Div, Mul, Pow, Mod, Concat,
@@ -28,10 +28,10 @@ pub enum Kind {
     Str(Vec<u8>, usize),
 }
 
-impl Kind {
-    pub fn length(&self) -> usize {
-        use Kind::*;
+use TokenType::*;
 
+impl TokenType {
+    pub fn length(&self) -> usize {
         match self {
             Name(n) => n.len(),
             Num(_, size) => *size,
@@ -54,32 +54,32 @@ impl Kind {
 }
 
 lazy_static! {
-    pub static ref KEYWORDS: HashMap<&'static str, Kind> = hashmap! {
-        "do" => Kind::Do,
-        "in" => Kind::In,
-        "if" => Kind::If,
-        "or" => Kind::Or,
-        "nil" => Kind::Nil,
-        "end" => Kind::End,
-        "for" => Kind::For,
-        "and" => Kind::And,
-        "not" => Kind::Not,
-        "true" => Kind::True,
-        "then" => Kind::Then,
-        "else" => Kind::Else,
-        "local" => Kind::Local,
-        "false" => Kind::False,
-        "while" => Kind::While,
-        "until" => Kind::Until,
-        "break" => Kind::Break,
-        "elseif" => Kind::ElseIf,
-        "repeat" => Kind::Repeat,
-        "return" => Kind::Return,
-        "function" => Kind::Function,
+    pub static ref KEYWORDS: HashMap<&'static str, TokenType> = hashmap! {
+        "do" => Do,
+        "in" => In,
+        "if" => If,
+        "or" => Or,
+        "nil" => Nil,
+        "end" => End,
+        "for" => For,
+        "and" => And,
+        "not" => Not,
+        "true" => True,
+        "then" => Then,
+        "else" => Else,
+        "local" => Local,
+        "false" => False,
+        "while" => While,
+        "until" => Until,
+        "break" => Break,
+        "elseif" => ElseIf,
+        "repeat" => Repeat,
+        "return" => Return,
+        "function" => Function,
     };
 }
 
 pub struct Token {
-    pub kind: Kind,
+    pub ty: TokenType,
     pub line: usize,
 }

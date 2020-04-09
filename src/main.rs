@@ -28,6 +28,6 @@ print(#x)
     .collect::<Vec<_>>();
 
     for t in lexer::tokenize(&src) {
-        println!("{:?}", t.kind);
+        println!("{:?}", t.ty);
     }
 }
