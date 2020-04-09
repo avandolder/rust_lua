@@ -163,7 +163,7 @@ impl<'a> Lexer<'a> {
                     panic!("Malformed number near {}", num);
                 }
                 num.push_str(&self.scan_digits(num.len()));
-            },
+            }
             c if c.is_alphanumeric() => panic!("Malformed number near {}", num),
             _ => (),
         }
@@ -172,7 +172,10 @@ impl<'a> Lexer<'a> {
     }
 
     fn scan_digits(&self, offset: usize) -> String {
-        self.src[offset..].iter().take_while(|&&c| c.is_ascii_digit()).collect::<String>()
+        self.src[offset..]
+            .iter()
+            .take_while(|&&c| c.is_ascii_digit())
+            .collect::<String>()
     }
 }
 
