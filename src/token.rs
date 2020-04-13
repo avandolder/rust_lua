@@ -4,8 +4,8 @@ use lazy_static::lazy_static;
 use maplit::hashmap;
 
 #[rustfmt::skip]
-#[derive(Clone, Debug)]
-pub enum TokenType {
+#[derive(Clone, Debug,)]
+pub enum Type {
     EQ, NEQ, GTE, LTE, GT, LT,
 
     Add, Sub, Div, Mul, Pow, Mod, Concat,
@@ -28,33 +28,29 @@ pub enum TokenType {
     Str(Vec<u8>, usize),
 }
 
-use TokenType::*;
+pub use Type::*;
 
-impl TokenType {
+impl Type {
+    #[must_use]
     pub fn length(&self) -> usize {
         match self {
             Name(n) => n.len(),
-            Num(_, size) => *size,
-            Str(_, size) => *size,
+            Num(_, size) | Str(_, size) => *size,
 
-            // Keywords
-            Do | In | If | Or => 2,
-            Nil | End | For | And | Not => 3,
+            Concat | EQ | NEQ | GTE | LTE | Do | In | If | Or => 2,
+            Vararg | Nil | End | For | And | Not => 3,
             True | Then | Else => 4,
             Local | False | While | Until | Break => 5,
             ElseIf | Repeat | Return => 6,
             Function => 8,
 
-            // Symbols
-            Vararg => 3,
-            Concat | EQ | NEQ | GTE | LTE => 2,
             _ => 1,
         }
     }
 }
 
 lazy_static! {
-    pub static ref KEYWORDS: HashMap<&'static str, TokenType> = hashmap! {
+    pub static ref KEYWORDS: HashMap<&'static str, Type> = hashmap! {
         "do" => Do,
         "in" => In,
         "if" => If,
@@ -80,6 +76,6 @@ lazy_static! {
 }
 
 pub struct Token {
-    pub ty: TokenType,
+    pub ty: Type,
     pub line: usize,
 }

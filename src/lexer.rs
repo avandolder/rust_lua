@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::token::{TokenType, Token, KEYWORDS};
+use crate::token::{self, Token, KEYWORDS};
 
 struct Lexer<'a> {
     src: &'a [char],
@@ -9,8 +9,6 @@ struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     fn next_token(&mut self) -> Option<Token> {
-        use TokenType::*;
-
         // Skip leading comments or whitespace.
         loop {
             match self.src {
@@ -30,34 +28,34 @@ impl<'a> Lexer<'a> {
 
             [c, ..] if c.is_alphabetic() || *c == '_' => self.scan_name(),
 
-            ['=', '=', ..] => EQ,
-            ['~', '=', ..] => NEQ,
-            ['>', '=', ..] => GTE,
-            ['<', '=', ..] => LTE,
-            ['>', ..] => GT,
-            ['<', ..] => LT,
-            ['+', ..] => Add,
-            ['-', ..] => Sub,
-            ['/', ..] => Div,
-            ['*', ..] => Mul,
-            ['^', ..] => Pow,
-            ['%', ..] => Mod,
+            ['=', '=', ..] => token::EQ,
+            ['~', '=', ..] => token::NEQ,
+            ['>', '=', ..] => token::GTE,
+            ['<', '=', ..] => token::LTE,
+            ['>', ..] => token::GT,
+            ['<', ..] => token::LT,
+            ['+', ..] => token::Add,
+            ['-', ..] => token::Sub,
+            ['/', ..] => token::Div,
+            ['*', ..] => token::Mul,
+            ['^', ..] => token::Pow,
+            ['%', ..] => token::Mod,
 
-            ['=', ..] => Assign,
-            [':', ..] => Colon,
-            [',', ..] => Comma,
-            [';', ..] => Semicolon,
-            ['#', ..] => Hash,
-            ['.', '.', '.', ..] => Vararg,
-            ['.', '.', ..] => Concat,
-            ['.', ..] => Period,
+            ['=', ..] => token::Assign,
+            [':', ..] => token::Colon,
+            [',', ..] => token::Comma,
+            [';', ..] => token::Semicolon,
+            ['#', ..] => token::Hash,
+            ['.', '.', '.', ..] => token::Vararg,
+            ['.', '.', ..] => token::Concat,
+            ['.', ..] => token::Period,
 
-            ['{', ..] => LBrace,
-            ['}', ..] => RBrace,
-            ['[', ..] => LBracket,
-            [']', ..] => RBracket,
-            ['(', ..] => LParen,
-            [')', ..] => RParen,
+            ['{', ..] => token::LBrace,
+            ['}', ..] => token::RBrace,
+            ['[', ..] => token::LBracket,
+            [']', ..] => token::RBracket,
+            ['(', ..] => token::LParen,
+            [')', ..] => token::RParen,
 
             [c, ..] => panic!("Unexpected character '{}' encountered", c),
             [] => return None,
@@ -91,7 +89,7 @@ impl<'a> Lexer<'a> {
         self.line += 1;
     }
 
-    fn scan_name(&self) -> TokenType {
+    fn scan_name(&self) -> token::Type {
         let name = self
             .src
             .iter()
@@ -101,10 +99,10 @@ impl<'a> Lexer<'a> {
         KEYWORDS
             .get(name.as_str())
             .cloned()
-            .unwrap_or(TokenType::Name(name))
+            .unwrap_or(token::Name(name))
     }
 
-    fn scan_string(&self) -> TokenType {
+    fn scan_string(&self) -> token::Type {
         // Build up the closing sequence for the string from the opening sequence.
         let closer = self.src[0];
 
@@ -117,8 +115,7 @@ impl<'a> Lexer<'a> {
                     let c = match chars[size + 1] {
                         'a' => 7 as char,
                         'b' => 8 as char,
-                        '\n' => '\n',
-                        'n' => '\n',
+                        '\n' | 'n' => '\n',
                         'r' => '\r',
                         't' => '\t',
                         'v' => 11 as char,
@@ -140,10 +137,10 @@ impl<'a> Lexer<'a> {
         }
 
         // Add 2 to account for opening and closing quotes.
-        TokenType::Str(string, size + 2)
+        token::Str(string, size + 2)
     }
 
-    fn scan_number(&self) -> TokenType {
+    fn scan_number(&self) -> token::Type {
         let mut num = self.scan_digits(0);
 
         if self.src[num.len()] == '.' {
@@ -168,7 +165,7 @@ impl<'a> Lexer<'a> {
             _ => (),
         }
 
-        TokenType::Num(num.parse::<f64>().unwrap(), num.len())
+        token::Num(num.parse::<f64>().unwrap(), num.len())
     }
 
     fn scan_digits(&self, offset: usize) -> String {
