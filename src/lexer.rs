@@ -102,7 +102,7 @@ impl<'a> Lexer<'a> {
             .unwrap_or(token::Name(name))
     }
 
-    fn scan_string(&self) -> token::Type {
+    fn scan_string(&mut self) -> token::Type {
         // Build up the closing sequence for the string from the opening sequence.
         let closer = self.src[0];
 
@@ -115,7 +115,11 @@ impl<'a> Lexer<'a> {
                     let c = match chars[size + 1] {
                         'a' => 7 as char,
                         'b' => 8 as char,
-                        '\n' | 'n' => '\n',
+                        '\n' => {
+                            self.line += 1;
+                            '\n'
+                        },
+                        'n' => '\n',
                         'r' => '\r',
                         't' => '\t',
                         'v' => 11 as char,
