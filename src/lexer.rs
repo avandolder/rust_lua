@@ -8,7 +8,7 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn next_token(&mut self) -> Option<Token> {
+    fn next_token(&mut self) -> Option<Token<'a>> {
         // Skip leading comments or whitespace.
         loop {
             match self.src {
@@ -18,7 +18,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let ty = match self.src {
+        let (ty, length) = match self.src {
             ['0', 'X', ..] | ['0', 'x', ..] => todo!("Scan hexadecimal number"),
             [c, ..] if c.is_ascii_digit() => self.scan_number(),
             ['.', c, ..] if c.is_ascii_digit() => self.scan_number(),
@@ -28,44 +28,46 @@ impl<'a> Lexer<'a> {
 
             [c, ..] if c.is_alphabetic() || *c == '_' => self.scan_name(),
 
-            ['=', '=', ..] => token::EQ,
-            ['~', '=', ..] => token::NEQ,
-            ['>', '=', ..] => token::GTE,
-            ['<', '=', ..] => token::LTE,
-            ['>', ..] => token::GT,
-            ['<', ..] => token::LT,
-            ['+', ..] => token::Add,
-            ['-', ..] => token::Sub,
-            ['/', ..] => token::Div,
-            ['*', ..] => token::Mul,
-            ['^', ..] => token::Pow,
-            ['%', ..] => token::Mod,
+            ['=', '=', ..] => (token::EQ, 2),
+            ['~', '=', ..] => (token::NEQ, 2),
+            ['>', '=', ..] => (token::GTE, 2),
+            ['<', '=', ..] => (token::LTE, 2),
+            ['>', ..] => (token::GT, 1),
+            ['<', ..] => (token::LT, 1),
+            ['+', ..] => (token::Add, 1),
+            ['-', ..] => (token::Sub, 1),
+            ['/', ..] => (token::Div, 1),
+            ['*', ..] => (token::Mul, 1),
+            ['^', ..] => (token::Pow, 1),
+            ['%', ..] => (token::Mod, 1),
 
-            ['=', ..] => token::Assign,
-            [':', ..] => token::Colon,
-            [',', ..] => token::Comma,
-            [';', ..] => token::Semicolon,
-            ['#', ..] => token::Hash,
-            ['.', '.', '.', ..] => token::Vararg,
-            ['.', '.', ..] => token::Concat,
-            ['.', ..] => token::Period,
+            ['=', ..] => (token::Assign, 1),
+            [':', ..] => (token::Colon, 1),
+            [',', ..] => (token::Comma, 1),
+            [';', ..] => (token::Semicolon, 1),
+            ['#', ..] => (token::Hash, 1),
+            ['.', '.', '.', ..] => (token::Vararg, 3),
+            ['.', '.', ..] => (token::Concat, 2),
+            ['.', ..] => (token::Period, 1),
 
-            ['{', ..] => token::LBrace,
-            ['}', ..] => token::RBrace,
-            ['[', ..] => token::LBracket,
-            [']', ..] => token::RBracket,
-            ['(', ..] => token::LParen,
-            [')', ..] => token::RParen,
+            ['{', ..] => (token::LBrace, 1),
+            ['}', ..] => (token::RBrace, 1),
+            ['[', ..] => (token::LBracket, 1),
+            [']', ..] => (token::RBracket, 1),
+            ['(', ..] => (token::LParen, 1),
+            [')', ..] => (token::RParen, 1),
 
             [c, ..] => panic!("Unexpected character '{}' encountered", c),
             [] => return None,
         };
 
-        self.src = &self.src[ty.length()..];
+        let raw = &self.src[..length];
+        self.src = &self.src[length..];
 
         Some(Token {
             ty,
             line: self.line,
+            raw,
         })
     }
 
@@ -89,20 +91,21 @@ impl<'a> Lexer<'a> {
         self.line += 1;
     }
 
-    fn scan_name(&self) -> token::Type {
+    fn scan_name(&self) -> (token::Type, usize) {
         let name = self
             .src
             .iter()
             .take_while(|&&c| c.is_alphanumeric() || c == '_')
             .collect::<String>();
 
-        KEYWORDS
+        let ty = KEYWORDS
             .get(name.as_str())
             .cloned()
-            .unwrap_or(token::Name(name))
+            .unwrap_or(token::Name);
+        (ty, name.len())
     }
 
-    fn scan_string(&mut self) -> token::Type {
+    fn scan_string(&mut self) -> (token::Type, usize) {
         // Build up the closing sequence for the string from the opening sequence.
         let closer = self.src[0];
 
@@ -141,42 +144,42 @@ impl<'a> Lexer<'a> {
         }
 
         // Add 2 to account for opening and closing quotes.
-        token::Str(string, size + 2)
+        (token::Str, size + 2)
     }
 
-    fn scan_number(&self) -> token::Type {
-        let mut num = self.scan_digits(0);
+    fn scan_number(&self) -> (token::Type, usize) {
+        let mut length = self.scan_digits(0);
 
-        if self.src[num.len()] == '.' {
-            num.push('.');
+        if self.src[length] == '.' {
+            length += 1;
         }
-        if self.src[num.len()].is_ascii_digit() {
-            num.push_str(&self.scan_digits(num.len()));
+        if self.src[length].is_ascii_digit() {
+            length += self.scan_digits(length);
         }
 
-        match self.src[num.len()] {
+        match self.src[length] {
             'e' | 'E' => {
-                num.push('e');
-                if self.src[num.len()] == '-' {
-                    num.push('-');
+                length += 1;
+                if self.src[length] == '-' {
+                    length += 1;
                 }
-                if !self.src[num.len()].is_ascii_digit() {
-                    panic!("Malformed number near {}", num);
+                if !self.src[length].is_ascii_digit() {
+                    panic!("Malformed number near {}");
                 }
-                num.push_str(&self.scan_digits(num.len()));
+                length += self.scan_digits(length);
             }
-            c if c.is_alphanumeric() => panic!("Malformed number near {}", num),
+            c if c.is_alphanumeric() => panic!("Malformed number"),
             _ => (),
         }
 
-        token::Num(num.parse::<f64>().unwrap(), num.len())
+        (token::Num, length)
     }
 
-    fn scan_digits(&self, offset: usize) -> String {
+    fn scan_digits(&self, offset: usize) -> usize {
         self.src[offset..]
             .iter()
             .take_while(|&&c| c.is_ascii_digit())
-            .collect::<String>()
+            .count()
     }
 }
 
