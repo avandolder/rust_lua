@@ -109,51 +109,35 @@ impl<'a> Lexer<'a> {
     }
 
     fn scan_string(&mut self) -> Result<(token::Type, usize), Error<'a>> {
-        // Build up the closing sequence for the string from the opening sequence.
-        let closer = self.src[0];
-
-        let mut string = vec![];
-        let chars = &self.src[1..];
-        let mut size = 0;
-        while chars[size] != closer {
-            string.push(match chars[size] {
+        let opening_symbol = self.src[0];
+        let mut length = 1;
+        loop {
+            match self.src[length] {
+                c if c == opening_symbol => {
+                    length += 1;
+                    break;
+                }
                 '\\' => {
-                    let c = match chars[size + 1] {
-                        'a' => 7 as char,
-                        'b' => 8 as char,
-                        '\n' => {
-                            self.line += 1;
-                            '\n'
-                        }
-                        'n' => '\n',
-                        'r' => '\r',
-                        't' => '\t',
-                        'v' => 11 as char,
-                        '\\' => '\\',
-                        '"' => '"',
-                        '\'' => '\'',
-                        d if d.is_ascii_digit() => d as char,
+                    match self.src[length + 1] {
+                        'a' | 'b' | 'n' | 'r' | 't' | 'v' | '\\' | '"' | '\'' => (),
+                        '\n' => self.line += 1,
+                        d if d.is_ascii_digit() => (),
                         _ => return Err(Error {
-                            ty: error::InvalidEscapeSequence(&self.src[size..size + 2]),
+                            ty: error::InvalidEscapeSequence(&self.src[length..length + 2]),
                             line: self.line,
-                        })
-                    };
-                    size += 2;
-                    c as u8
+                        }),
+                    }
+                    length += 2;
                 }
                 '\n' => return Err(Error {
                     ty: error::UnexpectedNewlineInString,
                     line: self.line,
                 }),
-                c => {
-                    size += 1;
-                    c as u8
-                }
-            });
+                _ => length += 1,
+            }
         }
 
-        // Add 2 to account for opening and closing quotes.
-        Ok((token::Str, size + 2))
+        Ok((token::Str, length))
     }
 
     fn scan_number(&self) -> Result<(token::Type, usize), Error<'a>> {
