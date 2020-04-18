@@ -3,6 +3,10 @@ name = "rust_lua"
 version = "0.1.0"
 authors = ["Adam Vandolder <adam.vandolder@gmail.com>"]
 edition = "2018"
+license = "MIT"
+description = "Lua interpreter written in Rust"
+readme = "README.md"
+repository = "https://github.com/avandolder/rust_lua/"
 
 [dependencies]
 lazy_static = "1.4"
