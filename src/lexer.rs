@@ -1,5 +1,6 @@
 use std::iter;
 
+use crate::error::{self, Error};
 use crate::token::{self, Token, KEYWORDS};
 
 struct Lexer<'a> {
@@ -8,7 +9,7 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn next_token(&mut self) -> Option<Token<'a>> {
+    fn next_token(&mut self) -> Result<Token<'a>, Error<'a>> {
         // Skip leading comments or whitespace.
         loop {
             match self.src {
@@ -20,10 +21,10 @@ impl<'a> Lexer<'a> {
 
         let (ty, length) = match self.src {
             ['0', 'X', ..] | ['0', 'x', ..] => todo!("Scan hexadecimal number"),
-            [c, ..] if c.is_ascii_digit() => self.scan_number(),
-            ['.', c, ..] if c.is_ascii_digit() => self.scan_number(),
+            [c, ..] if c.is_ascii_digit() => self.scan_number()?,
+            ['.', c, ..] if c.is_ascii_digit() => self.scan_number()?,
 
-            ['"', ..] | ['\'', ..] => self.scan_string(),
+            ['"', ..] | ['\'', ..] => self.scan_string()?,
             ['[', '[', ..] | ['[', '=', ..] => todo!("Scan long bracket string"),
 
             [c, ..] if c.is_alphabetic() || *c == '_' => self.scan_name(),
@@ -57,14 +58,19 @@ impl<'a> Lexer<'a> {
             ['(', ..] => (token::LParen, 1),
             [')', ..] => (token::RParen, 1),
 
-            [c, ..] => panic!("Unexpected character '{}' encountered", c),
-            [] => return None,
+            [c, ..] => {
+                return Err(Error {
+                    line: self.line,
+                    ty: error::UnexpectedChar(*c),
+                })
+            }
+            [] => (token::EOF, 0),
         };
 
         let raw = &self.src[..length];
         self.src = &self.src[length..];
 
-        Some(Token {
+        Ok(Token {
             ty,
             line: self.line,
             raw,
@@ -98,14 +104,11 @@ impl<'a> Lexer<'a> {
             .take_while(|&&c| c.is_alphanumeric() || c == '_')
             .collect::<String>();
 
-        let ty = KEYWORDS
-            .get(name.as_str())
-            .cloned()
-            .unwrap_or(token::Name);
+        let ty = KEYWORDS.get(name.as_str()).cloned().unwrap_or(token::Name);
         (ty, name.len())
     }
 
-    fn scan_string(&mut self) -> (token::Type, usize) {
+    fn scan_string(&mut self) -> Result<(token::Type, usize), Error<'a>> {
         // Build up the closing sequence for the string from the opening sequence.
         let closer = self.src[0];
 
@@ -121,7 +124,7 @@ impl<'a> Lexer<'a> {
                         '\n' => {
                             self.line += 1;
                             '\n'
-                        },
+                        }
                         'n' => '\n',
                         'r' => '\r',
                         't' => '\t',
@@ -129,13 +132,19 @@ impl<'a> Lexer<'a> {
                         '\\' => '\\',
                         '"' => '"',
                         '\'' => '\'',
-                        d if d.is_ascii_digit() => todo!("Numerical escape sequences."),
-                        _ => panic!("Invalid escape sequence in string."),
+                        d if d.is_ascii_digit() => d as char,
+                        _ => return Err(Error {
+                            ty: error::InvalidEscapeSequence(&self.src[size..size + 2]),
+                            line: self.line,
+                        })
                     };
                     size += 2;
                     c as u8
                 }
-                '\n' => panic!("Unescaped newline in string literal."),
+                '\n' => return Err(Error {
+                    ty: error::UnexpectedNewlineInString,
+                    line: self.line,
+                }),
                 c => {
                     size += 1;
                     c as u8
@@ -144,10 +153,10 @@ impl<'a> Lexer<'a> {
         }
 
         // Add 2 to account for opening and closing quotes.
-        (token::Str, size + 2)
+        Ok((token::Str, size + 2))
     }
 
-    fn scan_number(&self) -> (token::Type, usize) {
+    fn scan_number(&self) -> Result<(token::Type, usize), Error<'a>> {
         let mut length = self.scan_digits(0);
 
         if self.src[length] == '.' {
@@ -164,15 +173,21 @@ impl<'a> Lexer<'a> {
                     length += 1;
                 }
                 if !self.src[length].is_ascii_digit() {
-                    panic!("Malformed number near {}");
+                    return Err(Error {
+                        ty: error::MalformedNumber,
+                        line: self.line,
+                    });
                 }
                 length += self.scan_digits(length);
             }
-            c if c.is_alphanumeric() => panic!("Malformed number"),
+            c if c.is_alphanumeric() => return Err(Error {
+                ty: error::MalformedNumber,
+                line: self.line,
+            }),
             _ => (),
         }
 
-        (token::Num, length)
+        Ok((token::Num, length))
     }
 
     fn scan_digits(&self, offset: usize) -> usize {
@@ -183,7 +198,13 @@ impl<'a> Lexer<'a> {
     }
 }
 
-pub fn tokenize<'a>(src: &'a [char]) -> iter::Peekable<impl Iterator<Item = Token> + 'a> {
+pub fn tokenize<'a>(
+    src: &'a [char],
+) -> iter::Peekable<impl Iterator<Item = Result<Token, Error>> + 'a> {
     let mut lexer: Lexer<'a> = Lexer { src, line: 1 };
-    iter::from_fn(move || lexer.next_token()).peekable()
+    iter::from_fn(move || match lexer.next_token() {
+        Ok(Token { ty: token::EOF, .. }) => None,
+        result => Some(result),
+    })
+    .peekable()
 }

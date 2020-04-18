@@ -1,8 +1,7 @@
 use rust_lua::lexer;
 
 fn main() {
-    let src = r#"
-local x = {}
+    let src = r#"local x = {}
 local y = "hello world \nbye"
 local z = -1.2e-10
 a = [1, "hahaha", .3]
@@ -22,12 +21,14 @@ else
     print("well")
 end
 -- comment
-print(#x)
-    "#
-    .chars()
-    .collect::<Vec<_>>();
+print(#x)"#
+        .chars()
+        .collect::<Vec<_>>();
 
     for t in lexer::tokenize(&src) {
-        println!("{:?}", t.ty);
+        match t {
+            Ok(t) => println!("{}", t),
+            Err(e) => panic!("Error {:?} on line {}", e.ty, e.line),
+        }
     }
 }
