@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use maplit::hashmap;
 
 #[rustfmt::skip]
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Type {
     EQ, NEQ, GTE, LTE, GT, LT,
 

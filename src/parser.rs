@@ -23,9 +23,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn expect(&mut self, expected: token::Type) -> Token {
         match self.tokens.next() {
-            Some(Token { ty, .. }) if ty == expected => {
-                self.consume()
-            }
+            Some(Token { ty, .. }) if ty == expected => self.consume(),
             _ => panic!(),
         }
     }
@@ -158,9 +156,79 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.pratt_parse(0);
     }
 
-    fn pratt_parse(&mut self, precedence: i32) {
-        todo!()
+    fn pratt_parse(&mut self, min_prec: i32) {
+        // Pratt expression parser inspired by
+        // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html.
+
+        // Consume the left-hand side of the expression.
+        let tok = self.consume();
+        match tok.ty {
+            token::LParen => {
+                self.pratt_parse(0);
+                self.expect(token::RParen);
+            }
+            // Match prefix operators.
+            op if unary_precedence(op).is_some() => {
+                self.pratt_parse(unary_precedence(op).unwrap());
+            }
+            _ => panic!("Invalid token {} in expresion.", tok),
+        }
+
+        loop {
+            let op = match self.peek_type() {
+                Some(ty) => ty,
+                None => break,
+            };
+
+            if let Some(l_prec) = index_precedence(op) {
+                if l_prec < min_prec {
+                    break;
+                }
+
+                self.consume();
+                continue;
+            }
+
+            if let Some((l_prec, r_prec)) = binary_precedence(op) {
+                if l_prec < min_prec {
+                    break;
+                }
+
+                self.consume();
+                self.pratt_parse(r_prec);
+                continue;
+            }
+
+            break;
+        }
     }
+}
+
+fn unary_precedence(op: token::Type) -> Option<i32> {
+    Some(match op {
+        token::Sub | token::Hash | token::Not => 8,
+        _ => return None,
+    })
+}
+
+fn index_precedence(op: token::Type) -> Option<i32> {
+    Some(match op {
+        token::LParen | token::LBracket => 10,
+        _ => return None,
+    })
+}
+
+fn binary_precedence(op: token::Type) -> Option<(i32, i32)> {
+    Some(match op {
+        token::Pow => (9, 8),
+        token::Mul | token::Div | token::Mod => (7, 8),
+        token::Add | token::Sub => (6, 7),
+        token::Concat => (5, 6),
+        token::LT | token::GT | token::LTE | token::GTE | token::EQ | token::NEQ => (4, 5),
+        token::And => (3, 4),
+        token::Or => (2, 3),
+        _ => return None,
+    })
 }
 
 pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = Token<'a>>>) {
