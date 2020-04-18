@@ -174,12 +174,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             _ => panic!("Invalid token {} in expresion.", tok),
         }
 
-        loop {
-            let op = match self.peek_type() {
-                Some(ty) => ty,
-                None => break,
-            };
-
+        while let Some(op) = self.peek_type() {
             if let Some(l_prec) = index_precedence(op) {
                 if l_prec < min_prec {
                     break;
