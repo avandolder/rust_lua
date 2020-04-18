@@ -14,3 +14,5 @@ pub struct Error<'a> {
     pub ty: Type<'a>,
     pub line: usize,
 }
+
+pub type Result<'a, T> = std::result::Result<T, Error<'a>>;

@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::error::{self, Error};
+use crate::error::{self, Error, Result};
 use crate::token::{self, Token, KEYWORDS};
 
 struct Lexer<'a> {
@@ -9,7 +9,7 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn next_token(&mut self) -> Result<Token<'a>, Error<'a>> {
+    fn next_token(&mut self) -> Result<'a, Token<'a>> {
         // Skip leading comments or whitespace.
         loop {
             match self.src {
@@ -108,7 +108,7 @@ impl<'a> Lexer<'a> {
         (ty, name.len())
     }
 
-    fn scan_string(&mut self) -> Result<(token::Type, usize), Error<'a>> {
+    fn scan_string(&mut self) -> Result<'a, (token::Type, usize)> {
         let opening_symbol = self.src[0];
         let mut length = 1;
         loop {
@@ -140,7 +140,7 @@ impl<'a> Lexer<'a> {
         Ok((token::Str, length))
     }
 
-    fn scan_number(&self) -> Result<(token::Type, usize), Error<'a>> {
+    fn scan_number(&self) -> Result<'a, (token::Type, usize)> {
         let mut length = self.scan_digits(0);
 
         if self.src[length] == '.' {
@@ -184,7 +184,7 @@ impl<'a> Lexer<'a> {
 
 pub fn tokenize<'a>(
     src: &'a [char],
-) -> iter::Peekable<impl Iterator<Item = Result<Token, Error>> + 'a> {
+) -> iter::Peekable<impl Iterator<Item = Result<Token>> + 'a> {
     let mut lexer: Lexer<'a> = Lexer { src, line: 1 };
     iter::from_fn(move || match lexer.next_token() {
         Ok(Token { ty: token::EOF, .. }) => None,
