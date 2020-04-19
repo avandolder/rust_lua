@@ -35,8 +35,11 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn parse_statement(&mut self) {
-        match self.consume().ty {
-            token::Do => self.parse_block(token::End),
+        match self.peek_type().unwrap() {
+            token::Do => {
+                self.consume();
+                self.parse_block(token::End);
+            }
             token::While => self.parse_while(),
             token::Repeat => self.parse_repeat(),
             token::If => self.parse_if(),
@@ -71,12 +74,14 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn parse_while(&mut self) {
+        self.expect(token::While);
         self.parse_expression();
         self.expect(token::Do);
         self.parse_block(token::End);
     }
 
     fn parse_repeat(&mut self) {
+        self.expect(token::Repeat);
         self.parse_block(token::Until);
         self.parse_expression();
     }
@@ -86,6 +91,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn parse_for(&mut self) {
+        self.expect(token::For);
         self.expect(token::Name);
 
         match self.consume().ty {
@@ -112,6 +118,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn parse_function(&mut self) {
+        self.expect(token::Function);
         self.expect(token::Name);
         self.expect(token::LParen);
 
@@ -123,6 +130,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     }
 
     fn parse_local(&mut self) {
+        self.expect(token::Local);
+
         if let Some(token::Function) = self.peek_type() {
             self.consume();
             self.parse_function();
