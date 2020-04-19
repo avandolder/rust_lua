@@ -132,7 +132,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
 
     fn parse_function(&mut self) {
         self.expect(token::Function);
-        self.expect(token::Name);
+        self.parse_funcname();
         self.expect(token::LParen);
 
         if let Some(token::Name) = self.peek_type() {
@@ -141,6 +141,20 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.expect(token::RParen);
         self.parse_block();
         self.expect(token::End);
+    }
+
+    fn parse_funcname(&mut self) {
+        self.expect(token::Name);
+
+        while let Some(token::Period) = self.peek_type() {
+            self.consume();
+            self.expect(token::Name);
+        }
+
+        if let Some(token::Colon) = self.peek_type() {
+            self.consume();
+            self.expect(token::Name);
+        }
     }
 
     fn parse_local(&mut self) {
