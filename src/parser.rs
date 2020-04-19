@@ -38,7 +38,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         match self.peek_type().unwrap() {
             token::Do => {
                 self.consume();
-                self.parse_block(token::End);
+                self.parse_block();
+                self.expect(token::End);
             }
             token::While => self.parse_while(),
             token::Repeat => self.parse_repeat(),
@@ -51,23 +52,19 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
     }
 
-    fn parse_block(&mut self, end_token: token::Type) {
+    fn parse_block(&mut self) {
         loop {
-            match self.peek_type() {
-                Some(token::Return) => {
+            match self.peek_type().unwrap() {
+                token::Return => {
+                    self.consume();
                     self.parse_expression_list();
-                    self.expect(end_token);
                     break;
                 }
-                Some(token::Break) => {
-                    self.consume();
-                    self.expect(end_token);
-                    break;
-                }
-                Some(ty) if ty == end_token => {
+                token::Break => {
                     self.consume();
                     break;
                 }
+                token::End | token::Until | token::ElseIf | token::Else => break,
                 _ => self.parse_statement(),
             }
         }
@@ -77,17 +74,32 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.expect(token::While);
         self.parse_expression();
         self.expect(token::Do);
-        self.parse_block(token::End);
+        self.parse_block();
+        self.expect(token::End);
     }
 
     fn parse_repeat(&mut self) {
         self.expect(token::Repeat);
-        self.parse_block(token::Until);
+        self.parse_block();
+        self.expect(token::Until);
         self.parse_expression();
     }
 
     fn parse_if(&mut self) {
-        todo!()
+        self.expect(token::If);
+        self.parse_expression();
+        self.expect(token::Then);
+        self.parse_block();
+
+        while let Some(token::ElseIf) = self.peek_type() {
+            self.parse_block();
+        }
+
+        if let Some(token::Else) = self.peek_type() {
+            self.parse_block();
+        }
+
+        self.expect(token::End);
     }
 
     fn parse_for(&mut self) {
@@ -114,7 +126,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         }
 
         self.expect(token::Do);
-        self.parse_block(token::End);
+        self.parse_block();
+        self.expect(token::End);
     }
 
     fn parse_function(&mut self) {
@@ -126,7 +139,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             self.parse_name_list();
         }
         self.expect(token::RParen);
-        self.parse_block(token::End);
+        self.parse_block();
+        self.expect(token::End);
     }
 
     fn parse_local(&mut self) {
