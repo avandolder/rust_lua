@@ -47,7 +47,18 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
             token::For => self.parse_for(),
             token::Function => self.parse_function(),
             token::Local => self.parse_local(),
-            token::Name => todo!(),
+            token::Name | token::LParen => {
+                self.parse_expression();
+
+                if let Some(token::Comma) = self.peek_type() {
+                    self.parse_expression_list();
+                    self.expect(token::Assign);
+                    self.parse_expression_list();
+                } else if let Some(token::Assign) = self.peek_type() {
+                    self.consume();
+                    self.parse_expression_list();
+                }
+            }
             _ => panic!(),
         }
     }
@@ -133,12 +144,16 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn parse_function(&mut self) {
         self.expect(token::Function);
         self.parse_funcname();
-        self.expect(token::LParen);
+        self.parse_funcbody();
+    }
 
+    fn parse_funcbody(&mut self) {
+        self.expect(token::LParen);
         if let Some(token::Name) = self.peek_type() {
             self.parse_name_list();
         }
         self.expect(token::RParen);
+
         self.parse_block();
         self.expect(token::End);
     }
@@ -171,6 +186,40 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         self.parse_expression_list();
     }
 
+    fn parse_table(&mut self) {
+        self.expect(token::LBrace);
+
+        while self.peek_type().unwrap() != token::RBrace {
+            self.parse_field();
+
+            if let Some(token::Comma) | Some(token::Semicolon) = self.peek_type() {
+                self.consume();
+            } else {
+                break;
+            }
+        }
+
+        self.expect(token::RBrace);
+    }
+
+    fn parse_field(&mut self) {
+        match self.peek_type().unwrap() {
+            token::LBracket => {
+                self.consume();
+                self.parse_expression();
+                self.expect(token::RBracket);
+                self.expect(token::Assign);
+                self.parse_expression();
+            }
+            token::Name => {
+                self.consume();
+                self.expect(token::Assign);
+                self.parse_expression();
+            }
+            _ => self.parse_expression(),
+        }
+    }
+
     fn parse_name_list(&mut self) {
         self.expect(token::Name);
 
@@ -198,17 +247,34 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
         // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html.
 
         // Consume the left-hand side of the expression.
-        let tok = self.consume();
+        let tok = self.peek().unwrap();
         match tok.ty {
+            token::Nil
+            | token::True
+            | token::False
+            | token::Num
+            | token::Str
+            | token::Vararg => {
+                self.consume();
+            }
+            token::Function => {
+                self.consume();
+                self.parse_funcbody();
+            }
+            token::LBrace => self.parse_table(),
             token::LParen => {
+                self.consume();
                 self.pratt_parse(0);
                 self.expect(token::RParen);
             }
             // Match prefix operators.
             t => match unary_precedence(t) {
-                Some(op) => self.pratt_parse(op),
+                Some(op) => {
+                    self.consume();
+                    self.pratt_parse(op);
+                }
                 None => panic!("Invalid token {} in expresion.", tok),
-            }
+            },
         }
 
         while let Some(op) = self.peek_type() {
