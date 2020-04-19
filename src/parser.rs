@@ -241,10 +241,10 @@ fn binary_precedence(op: token::Type) -> Option<(i32, i32)> {
         token::Pow => (9, 8),
         token::Mul | token::Div | token::Mod => (7, 8),
         token::Add | token::Sub => (6, 7),
-        token::Concat => (5, 6),
-        token::LT | token::GT | token::LTE | token::GTE | token::EQ | token::NEQ => (4, 5),
-        token::And => (3, 4),
-        token::Or => (2, 3),
+        token::Concat => (5, 4),
+        token::LT | token::GT | token::LTE | token::GTE | token::EQ | token::NEQ => (3, 4),
+        token::And => (2, 3),
+        token::Or => (1, 2),
         _ => return None,
     })
 }
