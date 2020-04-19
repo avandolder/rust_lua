@@ -168,10 +168,10 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
                 self.expect(token::RParen);
             }
             // Match prefix operators.
-            op if unary_precedence(op).is_some() => {
-                self.pratt_parse(unary_precedence(op).unwrap());
+            t => match unary_precedence(t) {
+                Some(op) => self.pratt_parse(op),
+                None => panic!("Invalid token {} in expresion.", tok),
             }
-            _ => panic!("Invalid token {} in expresion.", tok),
         }
 
         while let Some(op) = self.peek_type() {
