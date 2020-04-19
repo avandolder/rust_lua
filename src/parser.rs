@@ -24,7 +24,8 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
     fn expect(&mut self, expected: token::Type) -> Token {
         match self.tokens.next() {
             Some(Token { ty, .. }) if ty == expected => self.consume(),
-            _ => panic!(),
+            Some(t) => panic!("Expected {:?}, got {}", expected, t),
+            None => panic!("End of input, expecting {:?}", expected),
         }
     }
 
