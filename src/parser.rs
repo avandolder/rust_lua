@@ -1,30 +1,32 @@
 use std::iter::Peekable;
 
+use crate::error::Result;
 use crate::token::{self, Token};
 
-struct Parser<'a, I: Iterator<Item = Token<'a>>> {
+struct Parser<'a, I: Iterator<Item = Result<'a, Token<'a>>>> {
     tokens: Peekable<I>,
 }
 
-impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
-    fn peek(&mut self) -> Option<&Token> {
-        self.tokens.peek()
+impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
+    fn peek(&mut self) -> Option<Token<'a>> {
+        self.tokens.peek().and_then(|result| result.clone().ok())
     }
 
     fn peek_type(&mut self) -> Option<token::Type> {
-        self.tokens.peek().map(|token| token.ty)
+        self.peek().map(|tok| tok.ty)
     }
 
     fn consume(&mut self) -> Token {
         self.tokens
             .next()
             .expect("Unexpected end of input while parsing.")
+            .expect("Scanning error")
     }
 
     fn expect(&mut self, expected: token::Type) -> Token {
-        match self.tokens.next() {
-            Some(Token { ty, .. }) if ty == expected => self.consume(),
-            Some(t) => panic!("Expected {:?}, got {}", expected, t),
+        match self.peek_type() {
+            Some(ty) if ty == expected => self.consume(),
+            Some(_) => panic!("Expected {:?}, got {}", expected, self.consume()),
             None => panic!("End of input, expecting {:?}", expected),
         }
     }
@@ -274,7 +276,7 @@ impl<'a, I: Iterator<Item = Token<'a>>> Parser<'a, I> {
                     self.consume();
                     self.pratt_parse(op);
                 }
-                None => panic!("Invalid token {} in expresion.", tok),
+                None => panic!("Invalid token {} in expression.", tok),
             },
         }
 
@@ -330,7 +332,7 @@ fn binary_precedence(op: token::Type) -> Option<(i32, i32)> {
     })
 }
 
-pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = Token<'a>>>) {
+pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = Result<'a, Token<'a>>>>) {
     let mut parser = Parser { tokens };
     parser.parse_chunk();
 }
