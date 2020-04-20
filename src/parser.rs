@@ -31,9 +31,26 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         }
     }
 
-    fn parse_chunk(&mut self) {
-        while let Some(_) = self.tokens.peek() {
-            self.parse_statement();
+    fn parse_block(&mut self) {
+        loop {
+            match self.peek_type() {
+                Some(token::Return) => {
+                    self.consume();
+                    self.parse_expression_list();
+                    break;
+                }
+                Some(token::Break) => {
+                    self.consume();
+                    break;
+                }
+                Some(token::End) | Some(token::Until) | Some(token::ElseIf) | Some(token::Else) => break,
+                Some(_) => self.parse_statement(),
+                None => break,
+            }
+
+            if let Some(token::Semicolon) = self.peek_type() {
+                self.consume();
+            }
         }
     }
 
@@ -63,24 +80,6 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                 }
             }
             _ => panic!(),
-        }
-    }
-
-    fn parse_block(&mut self) {
-        loop {
-            match self.peek_type().unwrap() {
-                token::Return => {
-                    self.consume();
-                    self.parse_expression_list();
-                    break;
-                }
-                token::Break => {
-                    self.consume();
-                    break;
-                }
-                token::End | token::Until | token::ElseIf | token::Else => break,
-                _ => self.parse_statement(),
-            }
         }
     }
 
@@ -335,5 +334,6 @@ fn binary_precedence(op: token::Type) -> Option<(i32, i32)> {
 
 pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = Result<'a, Token<'a>>>>) {
     let mut parser = Parser { tokens };
-    parser.parse_chunk();
+    parser.parse_block();
+    assert!(parser.tokens.next().is_none());
 }
