@@ -180,7 +180,8 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
 
         if let Some(token::Function) = self.peek_type() {
             self.consume();
-            self.parse_function();
+            self.expect(token::Name);
+            self.parse_funcbody();
             return;
         }
 
