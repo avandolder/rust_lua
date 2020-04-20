@@ -94,7 +94,6 @@ impl<'a> Lexer<'a> {
     fn skip_comment(&mut self) {
         let comment_length = self.src.iter().take_while(|&&c| c != '\n').count();
         self.src = &self.src[comment_length..];
-        self.line += 1;
     }
 
     fn scan_name(&self) -> (token::Type, usize) {
@@ -182,9 +181,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
-pub fn tokenize<'a>(
-    src: &'a [char],
-) -> iter::Peekable<impl Iterator<Item = Result<Token>> + 'a> {
+pub fn tokenize<'a>(src: &'a [char]) -> iter::Peekable<impl Iterator<Item = Result<Token>> + 'a> {
     let mut lexer: Lexer<'a> = Lexer { src, line: 1 };
     iter::from_fn(move || match lexer.next_token() {
         Ok(Token { ty: token::EOF, .. }) => None,
