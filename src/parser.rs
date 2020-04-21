@@ -352,15 +352,6 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         }
 
         while let Some(op) = self.peek_type() {
-            if let Some(l_prec) = index_precedence(op) {
-                if l_prec < min_prec {
-                    break;
-                }
-
-                self.consume();
-                continue;
-            }
-
             if let Some((l_prec, r_prec)) = binary_precedence(op) {
                 if l_prec < min_prec {
                     break;
@@ -379,13 +370,6 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
 fn unary_precedence(op: token::Type) -> Option<i32> {
     Some(match op {
         token::Sub | token::Hash | token::Not => 8,
-        _ => return None,
-    })
-}
-
-fn index_precedence(op: token::Type) -> Option<i32> {
-    Some(match op {
-        token::LParen | token::LBracket => 10,
         _ => return None,
     })
 }
