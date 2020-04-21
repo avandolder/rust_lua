@@ -152,12 +152,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_funcbody(&mut self) {
-        self.expect(token::LParen);
-        if let Some(token::Name) = self.peek_type() {
-            self.parse_name_list();
-        }
-        self.expect(token::RParen);
-
+        self.parse_parameter_list();
         self.parse_block();
         self.expect(token::End);
     }
@@ -232,6 +227,28 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
             self.consume();
             self.expect(token::Name);
         }
+    }
+
+    fn parse_parameter_list(&mut self) {
+        self.expect(token::LParen);
+
+        loop {
+            if let Some(token::Vararg) = self.peek_type() {
+                self.consume();
+                break;
+            } if let Some(token::Name) = self.peek_type() {
+                self.consume();
+            }
+
+            if let Some(token::Comma) = self.peek_type() {
+                self.consume();
+                continue;
+            }
+
+            break;
+        }
+
+        self.expect(token::RParen);
     }
 
     fn parse_prefixexp(&mut self) {
