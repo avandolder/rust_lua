@@ -43,7 +43,9 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                     self.consume();
                     break;
                 }
-                Some(token::End) | Some(token::Until) | Some(token::ElseIf) | Some(token::Else) => break,
+                Some(token::End) | Some(token::Until) | Some(token::ElseIf) | Some(token::Else) => {
+                    break;
+                }
                 Some(_) => self.parse_statement(),
                 None => break,
             }
@@ -240,7 +242,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
             if let Some(token::Vararg) = self.peek_type() {
                 self.consume();
                 break;
-            } if let Some(token::Name) = self.peek_type() {
+            } else if let Some(token::Name) = self.peek_type() {
                 self.consume();
             }
 
@@ -332,12 +334,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         // Consume the left-hand side of the expression.
         let tok = self.peek().unwrap();
         match tok.ty {
-            token::Nil
-            | token::True
-            | token::False
-            | token::Num
-            | token::Str
-            | token::Vararg => {
+            token::Nil | token::True | token::False | token::Num | token::Str | token::Vararg => {
                 self.consume();
             }
             token::Function => {
