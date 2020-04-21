@@ -265,7 +265,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
 
     fn parse_var_or_funccall(&mut self) {
         match self.peek_type().unwrap() {
-            token::LParen | token::LBrace | token::Str => todo!("args"),
+            token::LParen | token::LBrace | token::Str => self.parse_arguments(),
             token::LBracket => {
                 self.consume();
                 self.parse_expression();
@@ -278,12 +278,34 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
             token::Colon => {
                 self.consume();
                 self.expect(token::Name);
-                todo!("args")
+                self.parse_arguments();
             }
             _ => return,
         }
 
         self.parse_var_or_funccall();
+    }
+
+    fn parse_arguments(&mut self) {
+        match self.peek_type().unwrap() {
+            token::Str => {
+                self.consume();
+            }
+            token::LBrace => {
+                self.parse_table();
+            }
+            token::LParen => {
+                self.consume();
+
+                match self.peek_type() {
+                    Some(token::RParen) => (),
+                    _ => self.parse_expression_list(),
+                }
+
+                self.expect(token::RParen);
+            }
+            _ => panic!(),
+        }
     }
 
     fn parse_expression_list(&mut self) {
