@@ -1,10 +1,10 @@
-use rust_lua::lexer;
+use rust_lua::{lexer, parser};
 
 fn main() {
     let src = r#"local x = {}
 local y = "hello world \nbye"
 local z = -1.2e-10
-a = [1, "hahaha", .3]
+a = {b=1, ['c']="hahaha", .3}
 b = 'a' .. "b"
 x.p = 1 + 2 - 3 * 7 / 2 ^ 10 % 2
 function x:q(a, ...) return 10 end
@@ -25,10 +25,6 @@ print(#x)"#
         .chars()
         .collect::<Vec<_>>();
 
-    for t in lexer::tokenize(&src) {
-        match t {
-            Ok(t) => println!("{}", t),
-            Err(e) => panic!("Error {:?} on line {}", e.ty, e.line),
-        }
-    }
+    let tokens = lexer::tokenize(&src);
+    parser::parse(tokens);
 }
