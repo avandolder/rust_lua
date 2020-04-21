@@ -268,18 +268,18 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_var_or_funccall(&mut self) {
-        match self.peek_type().unwrap() {
-            token::LParen | token::LBrace | token::Str => self.parse_arguments(),
-            token::LBracket => {
+        match self.peek_type() {
+            Some(token::LParen) | Some(token::LBrace) | Some(token::Str) => self.parse_arguments(),
+            Some(token::LBracket) => {
                 self.consume();
                 self.parse_expression();
                 self.expect(token::RBracket);
             }
-            token::Period => {
+            Some(token::Period) => {
                 self.consume();
                 self.expect(token::Name);
             }
-            token::Colon => {
+            Some(token::Colon) => {
                 self.consume();
                 self.expect(token::Name);
                 self.parse_arguments();
