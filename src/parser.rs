@@ -68,13 +68,15 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
             token::Function => self.parse_function(),
             token::Local => self.parse_local(),
             token::Name | token::LParen => {
-                self.parse_expression();
+                // This call will either parse a variable assignment statement
+                // (potentially a list assignment) or a function call statement.
+                self.parse_prefixexp();
 
-                if let Some(token::Comma) = self.peek_type() {
-                    self.parse_expression_list();
-                    self.expect(token::Assign);
-                    self.parse_expression_list();
-                } else if let Some(token::Assign) = self.peek_type() {
+                while let Some(token::Comma) = self.peek_type() {
+                    self.parse_prefixexp();
+                }
+
+                if let Some(token::Assign) = self.peek_type() {
                     self.consume();
                     self.parse_expression_list();
                 }
@@ -232,6 +234,41 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         }
     }
 
+    fn parse_prefixexp(&mut self) {
+        match self.consume().ty {
+            token::Name => (),
+            token::LParen => {
+                self.parse_expression();
+                self.expect(token::RParen);
+            }
+            _ => panic!(),
+        }
+        self.parse_var_or_funccall();
+    }
+
+    fn parse_var_or_funccall(&mut self) {
+        match self.peek_type().unwrap() {
+            token::LParen | token::LBrace | token::Str => todo!("args"),
+            token::LBracket => {
+                self.consume();
+                self.parse_expression();
+                self.expect(token::RBracket);
+            }
+            token::Period => {
+                self.consume();
+                self.expect(token::Name);
+            }
+            token::Colon => {
+                self.consume();
+                self.expect(token::Name);
+                todo!("args")
+            }
+            _ => return,
+        }
+
+        self.parse_var_or_funccall();
+    }
+
     fn parse_expression_list(&mut self) {
         self.parse_expression();
 
@@ -265,18 +302,13 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                 self.parse_funcbody();
             }
             token::LBrace => self.parse_table(),
-            token::LParen => {
-                self.consume();
-                self.pratt_parse(0);
-                self.expect(token::RParen);
-            }
             // Match prefix operators.
             t => match unary_precedence(t) {
                 Some(op) => {
                     self.consume();
                     self.pratt_parse(op);
                 }
-                None => panic!("Invalid token {} in expression.", tok),
+                None => self.parse_prefixexp(),
             },
         }
 
