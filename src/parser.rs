@@ -107,10 +107,14 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         self.parse_block();
 
         while let Some(token::ElseIf) = self.peek_type() {
+            self.consume();
+            self.parse_expression();
+            self.expect(token::Then);
             self.parse_block();
         }
 
         if let Some(token::Else) = self.peek_type() {
+            self.consume();
             self.parse_block();
         }
 
