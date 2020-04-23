@@ -359,7 +359,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
             // Match prefix operators.
             op => match unary_precedence(op) {
                 Some(prec) => {
-                    self.consume();
+                    let op = self.consume().ty.try_into().unwrap();
                     Expr::UnaryOp(op, Box::new(self.pratt_parse(prec)))
                 }
                 None => self.parse_prefixexp(),
@@ -372,7 +372,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                     break;
                 }
 
-                self.consume();
+                let op = self.consume().ty.try_into().unwrap();
                 lhs = Expr::BinaryOp(op, Box::new(lhs), Box::new(self.pratt_parse(r_prec)));
             } else {
                 break;
@@ -414,15 +414,15 @@ mod tests {
     use super::*;
 
     fn create_token_stream(
-        tokens: &[token::Type],
-    ) -> Peekable<impl Iterator<Item = Result<Token>>> {
+        tokens: &'static [(token::Type, &'static [char])],
+    ) -> Peekable<impl Iterator<Item = Result<'static, Token<'static>>>> {
         tokens
             .iter()
-            .map(|&ty| {
+            .map(|(ty, raw)| {
                 Ok(Token {
-                    ty,
+                    ty: *ty,
                     line: 0,
-                    raw: &[],
+                    raw,
                 })
             })
             .peekable()
@@ -432,12 +432,30 @@ mod tests {
     fn test_expressions() {
         use token::Type::*;
 
-        let tokens = create_token_stream(&[True, And, False]);
+        let tokens = create_token_stream(&[(True, &[]), (And, &[]), (False, &[])]);
         let mut parser = Parser { tokens };
-        assert_eq!(parser.parse_expression().to_string(), "(true And false)");
+        assert_eq!(parser.parse_expression().to_string(), "(true and false)");
 
-        let tokens = create_token_stream(&[Function, LParen, RParen, End, Add, Nil]);
+        let tokens = create_token_stream(&[
+            (Function, &[]),
+            (LParen, &[]),
+            (RParen, &[]),
+            (End, &[]),
+            (Add, &[]),
+            (Nil, &[]),
+        ]);
         let mut parser = Parser { tokens };
-        assert_eq!(parser.parse_expression().to_string(), "(function Add nil)");
+        assert_eq!(parser.parse_expression().to_string(), "(function + nil)");
+
+        let tokens = create_token_stream(&[
+            (Sub, &[]),
+            (Num, &['1']),
+            (Add, &[]),
+            (Num, &['2']),
+            (Mul, &[]),
+            (Num, &['3']),
+        ]);
+        let mut parser = Parser { tokens };
+        assert_eq!(parser.parse_expression().to_string(), "(-1 + (2 * 3))");
     }
 }
