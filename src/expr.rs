@@ -178,7 +178,7 @@ impl fmt::Display for Expr {
                     .join(", ");
                 format!("{{ {} }}", fields)
             }
-            Expr::String(s) => format!("'{}'", s),
+            Expr::String(s) => s.clone(),
             Expr::Number(n) => n.to_string(),
             Expr::Bool(bool) => bool.to_string(),
             Expr::Nil => "nil".to_owned(),

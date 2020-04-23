@@ -353,10 +353,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                 self.parse_funcbody();
                 Expr::Function
             }
-            token::LBrace => {
-                self.parse_table();
-                Expr::Table(vec![])
-            }
+            token::LBrace => self.parse_table(),
             // Match prefix operators.
             op => match unary_precedence(op) {
                 Some(prec) => {
@@ -415,52 +412,68 @@ mod tests {
     use super::*;
 
     fn create_token_stream(
-        tokens: &'static [(token::Type, &'static [char])],
+        tokens: &'static [Token],
     ) -> Peekable<impl Iterator<Item = Result<'static, Token<'static>>>> {
-        tokens
-            .iter()
-            .map(|(ty, raw)| {
-                Ok(Token {
-                    ty: *ty,
-                    line: 0,
-                    raw,
-                })
-            })
-            .peekable()
+        tokens.iter().map(|tok| Ok(tok.clone())).peekable()
+    }
+
+    macro_rules! parse_tokens {
+        (($t:expr, $raw:expr)) => {
+            Token { ty: $t, line: 0, raw: &$raw }
+        };
+
+        ($t:expr) => {
+            Token { ty: $t, line: 0, raw: &[] }
+        };
+
+        ($($t:tt),*) => {
+            {
+                let mut parser = Parser { tokens: create_token_stream(&[$(parse_tokens!($t),)*]) };
+                parser.parse_expression().to_string()
+            }
+        };
     }
 
     #[test]
     fn test_expressions() {
         use token::Type::*;
 
-        let tokens = create_token_stream(&[(True, &[]), (And, &[]), (False, &[])]);
-        let mut parser = Parser { tokens };
-        assert_eq!(parser.parse_expression().to_string(), "(true and false)");
+        assert_eq!(parse_tokens!(True, And, False), "(true and false)");
 
-        let tokens = create_token_stream(&[
-            (Function, &[]),
-            (LParen, &[]),
-            (RParen, &[]),
-            (End, &[]),
-            (Add, &[]),
-            (Nil, &[]),
-        ]);
-        let mut parser = Parser { tokens };
-        assert_eq!(parser.parse_expression().to_string(), "(function + nil)");
+        assert_eq!(
+            parse_tokens!(Function, LParen, RParen, End, Add, Nil),
+            "(function + nil)"
+        );
 
-        let tokens = create_token_stream(&[
-            (Sub, &[]),
-            (Num, &['1']),
-            (Add, &[]),
-            (Num, &['2']),
-            (Pow, &[]),
-            (LParen, &[]),
-            (Num, &['3']),
-            (Mul, &[]),
-            (Num, &['4']),
-            (RParen, &[]),
-        ]);
-        let mut parser = Parser { tokens };
-        assert_eq!(parser.parse_expression().to_string(), "(-1 + (2 ^ (3 * 4)))");
+        assert_eq!(
+            parse_tokens!(
+                Sub,
+                (Num, ['1']),
+                Add,
+                (Num, ['2']),
+                Pow,
+                LParen,
+                (Num, ['3']),
+                Mul,
+                (Num, ['4']),
+                RParen
+            ),
+            "(-1 + (2 ^ (3 * 4)))"
+        );
+    }
+
+    #[test]
+    fn test_right_associativity() {
+        use token::Type::*;
+
+        assert_eq!(
+            parse_tokens!((Num, ['2']), Pow, (Num, ['2']), Pow, (Num, ['2'])),
+            "(2 ^ (2 ^ 2))",
+        );
+
+        assert_eq!(
+            parse_tokens!((Str, ['"', '"']), Concat, (Str, ['"', '"']), Concat, (Str, ['"', '"'])),
+            "(\"\" .. (\"\" .. \"\"))",
+        );
     }
 }
