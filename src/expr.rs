@@ -186,7 +186,7 @@ impl fmt::Display for Expr {
             Expr::Name(name) => name.0.to_owned(),
             Expr::Index(e, index) => format!("{}[{}]", e, index),
             Expr::Call(e, args) => {
-                let args = args.iter().map(|arg| arg.to_string()).join(", ");
+                let args = args.iter().map(Expr::to_string).join(", ");
                 format!("{}({})", e, args)
             }
             Expr::Member(e, name) => format!("{}.{}", e, name.0),
