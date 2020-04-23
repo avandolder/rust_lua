@@ -267,6 +267,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         let e = match self.peek_type().unwrap() {
             token::Name => self.consume().try_into().unwrap(),
             token::LParen => {
+                self.consume();
                 let e = self.parse_expression();
                 self.expect(token::RParen);
                 e
@@ -452,10 +453,14 @@ mod tests {
             (Num, &['1']),
             (Add, &[]),
             (Num, &['2']),
-            (Mul, &[]),
+            (Pow, &[]),
+            (LParen, &[]),
             (Num, &['3']),
+            (Mul, &[]),
+            (Num, &['4']),
+            (RParen, &[]),
         ]);
         let mut parser = Parser { tokens };
-        assert_eq!(parser.parse_expression().to_string(), "(-1 + (2 * 3))");
+        assert_eq!(parser.parse_expression().to_string(), "(-1 + (2 ^ (3 * 4)))");
     }
 }
