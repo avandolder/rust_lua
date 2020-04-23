@@ -9,5 +9,6 @@ readme = "README.md"
 repository = "https://github.com/avandolder/rust_lua/"
 
 [dependencies]
+itertools = "0.9"
 lazy_static = "1.4"
 maplit = "1.0"

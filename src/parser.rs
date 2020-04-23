@@ -1,6 +1,8 @@
+use std::convert::TryInto;
 use std::iter::Peekable;
 
 use crate::error::Result;
+use crate::expr::{Expr, Field};
 use crate::token::{self, Token};
 
 struct Parser<'a, I: Iterator<Item = Result<'a, Token<'a>>>> {
@@ -192,11 +194,12 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         self.parse_expression_list();
     }
 
-    fn parse_table(&mut self) {
-        self.expect(token::LBrace);
+    fn parse_table(&mut self) -> Expr {
+        let mut fields = vec![];
 
+        self.expect(token::LBrace);
         while self.peek_type().unwrap() != token::RBrace {
-            self.parse_field();
+            fields.push(self.parse_field());
 
             if let Some(token::Comma) | Some(token::Semicolon) = self.peek_type() {
                 self.consume();
@@ -204,25 +207,28 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                 break;
             }
         }
-
         self.expect(token::RBrace);
+
+        Expr::Table(fields)
     }
 
-    fn parse_field(&mut self) {
+    fn parse_field(&mut self) -> Field {
         match self.peek_type().unwrap() {
             token::LBracket => {
                 self.consume();
-                self.parse_expression();
+                let key = self.parse_expression();
                 self.expect(token::RBracket);
                 self.expect(token::Assign);
-                self.parse_expression();
+                let value = self.parse_expression();
+                Field::Pair(key, value)
             }
             token::Name => {
-                self.consume();
+                let key = self.consume().try_into().unwrap();
                 self.expect(token::Assign);
-                self.parse_expression();
+                let value = self.parse_expression();
+                Field::Pair(key, value)
             }
-            _ => self.parse_expression(),
+            _ => Field::Single(self.parse_expression()),
         }
     }
 
@@ -257,100 +263,108 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         self.expect(token::RParen);
     }
 
-    fn parse_prefixexp(&mut self) {
-        match self.consume().ty {
-            token::Name => (),
+    fn parse_prefixexp(&mut self) -> Expr {
+        let e = match self.peek_type().unwrap() {
+            token::Name => self.consume().try_into().unwrap(),
             token::LParen => {
-                self.parse_expression();
+                let e = self.parse_expression();
                 self.expect(token::RParen);
+                e
             }
             _ => panic!(),
-        }
-        self.parse_var_or_funccall();
+        };
+        self.parse_var_or_funccall(e)
     }
 
-    fn parse_var_or_funccall(&mut self) {
-        match self.peek_type() {
-            Some(token::LParen) | Some(token::LBrace) | Some(token::Str) => self.parse_arguments(),
+    fn parse_var_or_funccall(&mut self, e: Expr) -> Expr {
+        let e = match self.peek_type() {
+            Some(token::LParen) | Some(token::LBrace) | Some(token::Str) => {
+                let args = self.parse_arguments();
+                Expr::Call(Box::new(e), args)
+            }
             Some(token::LBracket) => {
                 self.consume();
-                self.parse_expression();
+                let index = self.parse_expression();
                 self.expect(token::RBracket);
+                Expr::Index(Box::new(e), Box::new(index))
             }
             Some(token::Period) => {
                 self.consume();
-                self.expect(token::Name);
+                let name = self.expect(token::Name).try_into().unwrap();
+                Expr::Member(Box::new(e), name)
             }
             Some(token::Colon) => {
                 self.consume();
-                self.expect(token::Name);
-                self.parse_arguments();
+                let name = self.expect(token::Name).try_into().unwrap();
+                let method = Expr::Method(Box::new(e), name);
+                Expr::Call(Box::new(method), self.parse_arguments())
             }
-            _ => return,
-        }
-
-        self.parse_var_or_funccall();
+            _ => return e,
+        };
+        self.parse_var_or_funccall(e)
     }
 
-    fn parse_arguments(&mut self) {
+    fn parse_arguments(&mut self) -> Vec<Expr> {
         match self.peek_type().unwrap() {
-            token::Str => {
-                self.consume();
-            }
-            token::LBrace => {
-                self.parse_table();
-            }
+            token::Str => vec![self.consume().try_into().unwrap()],
+            token::LBrace => vec![self.parse_table()],
             token::LParen => {
                 self.consume();
-
-                match self.peek_type() {
-                    Some(token::RParen) => (),
+                let args = match self.peek_type() {
+                    Some(token::RParen) => vec![],
                     _ => self.parse_expression_list(),
-                }
-
+                };
                 self.expect(token::RParen);
+                args
             }
             _ => panic!(),
         }
     }
 
-    fn parse_expression_list(&mut self) {
-        self.parse_expression();
+    fn parse_expression_list(&mut self) -> Vec<Expr> {
+        let mut exprs = vec![self.parse_expression()];
 
         while let Some(token::Comma) = self.peek_type() {
             self.consume();
-            self.parse_expression();
+            exprs.push(self.parse_expression());
         }
+
+        exprs
     }
 
-    fn parse_expression(&mut self) {
-        self.pratt_parse(0);
+    fn parse_expression(&mut self) -> Expr {
+        self.pratt_parse(0)
     }
 
-    fn pratt_parse(&mut self, min_prec: i32) {
+    fn pratt_parse(&mut self, min_prec: i32) -> Expr {
         // Pratt expression parser inspired by
         // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html.
 
         // Consume the left-hand side of the expression.
         let tok = self.peek().unwrap();
-        match tok.ty {
+        let mut lhs = match tok.ty {
             token::Nil | token::True | token::False | token::Num | token::Str | token::Vararg => {
                 self.consume();
+                tok.try_into().unwrap()
             }
             token::Function => {
                 self.consume();
                 self.parse_funcbody();
+                Expr::Function
             }
-            token::LBrace => self.parse_table(),
+            token::LBrace => {
+                self.parse_table();
+                Expr::Table(vec![])
+            }
             // Match prefix operators.
-            t => match unary_precedence(t) {
-                Some(op) => {
+            op => match unary_precedence(op) {
+                Some(prec) => {
                     self.consume();
-                    self.pratt_parse(op);
+                    Expr::UnaryOp(op, Box::new(self.pratt_parse(prec)))
                 }
                 None => self.parse_prefixexp(),
             },
-        }
+        };
 
         while let Some(op) = self.peek_type() {
             if let Some((l_prec, r_prec)) = binary_precedence(op) {
@@ -359,12 +373,13 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                 }
 
                 self.consume();
-                self.pratt_parse(r_prec);
-                continue;
+                lhs = Expr::BinaryOp(op, Box::new(lhs), Box::new(self.pratt_parse(r_prec)));
+            } else {
+                break;
             }
-
-            break;
         }
+
+        lhs
     }
 }
 
@@ -392,4 +407,37 @@ pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = Result<'a, Token<'a>>>>) 
     let mut parser = Parser { tokens };
     parser.parse_block();
     assert!(parser.tokens.next().is_none());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_token_stream(
+        tokens: &[token::Type],
+    ) -> Peekable<impl Iterator<Item = Result<Token>>> {
+        tokens
+            .iter()
+            .map(|&ty| {
+                Ok(Token {
+                    ty,
+                    line: 0,
+                    raw: &[],
+                })
+            })
+            .peekable()
+    }
+
+    #[test]
+    fn test_expressions() {
+        use token::Type::*;
+
+        let tokens = create_token_stream(&[True, And, False]);
+        let mut parser = Parser { tokens };
+        assert_eq!(parser.parse_expression().to_string(), "(true And false)");
+
+        let tokens = create_token_stream(&[Function, LParen, RParen, End, Add, Nil]);
+        let mut parser = Parser { tokens };
+        assert_eq!(parser.parse_expression().to_string(), "(function Add nil)");
+    }
 }
