@@ -476,4 +476,52 @@ mod tests {
             "(\"\" .. (\"\" .. \"\"))",
         );
     }
+
+    #[test]
+    fn test_function_call() {
+        use token::Type::*;
+
+        assert_eq!(
+            parse_tokens!(
+                (Name, ['a']),
+                Period,
+                (Name, ['b']),
+                LParen,
+                (Num, ['1']),
+                Comma,
+                (Str, ['"', '"']),
+                Comma,
+                LBrace,
+                RBrace,
+                RParen
+            ),
+            "a.b(1, \"\", {})"
+        );
+    }
+
+    #[test]
+    fn test_table_constructor() {
+        use token::Type::*;
+
+        assert_eq!(
+            parse_tokens!(
+                LBrace,
+                (Num, ['1']),
+                Comma,
+                (Num, ['2']),
+                Semicolon,
+                (Name, ['a']),
+                Assign,
+                (Num, ['1']),
+                Comma,
+                LBracket,
+                (Str, ['"', '.', '"']),
+                RBracket,
+                Assign,
+                True,
+                RBrace
+            ),
+            "{1, 2, a = 1, [\".\"] = true}"
+        )
+    }
 }
