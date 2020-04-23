@@ -176,7 +176,7 @@ impl fmt::Display for Expr {
                         Field::Single(value) => format!("{}", value),
                     })
                     .join(", ");
-                format!("{{ {} }}", fields)
+                format!("{{{}}}", fields)
             }
             Expr::String(s) => s.clone(),
             Expr::Number(n) => n.to_string(),
