@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::iter::Peekable;
 
 use crate::error::Result;
-use crate::expr::{Expr, Field};
+use crate::ast::{Expr, Field};
 use crate::token::{self, Token};
 
 struct Parser<'a, I: Iterator<Item = Result<'a, Token<'a>>>> {

@@ -210,3 +210,21 @@ fn string(tok: &Token) -> Expr {
 fn name(tok: &Token) -> Expr {
     Expr::Name(Name(tok.raw.iter().collect::<String>()))
 }
+
+pub enum Stmt {
+    Assign(Vec<Expr>, Vec<Expr>),
+    Block(Vec<Stmt>),
+    Break,
+    Call(Expr, Vec<Expr>),
+    For(Name, Expr, Expr, Option<Expr>, Vec<Stmt>),
+    ForIn(Vec<Name>, Vec<Expr>, Vec<Stmt>),
+    Function(Vec<Name>, Vec<Name>, bool, Vec<Stmt>),
+    If(Expr, Vec<Stmt>, Vec<Stmt>),
+    Method(Vec<Name>, Name, Vec<Name>, bool, Vec<Stmt>),
+    MethodCall(Expr, Name, Vec<Expr>),
+    LocalAssign(Vec<Name>, Vec<Expr>),
+    LocalFunction(Name, Vec<Name>, bool, Vec<Stmt>),
+    Return(Vec<Expr>),
+    Until(Expr, Vec<Stmt>),
+    While(Expr, Vec<Stmt>),
+}
