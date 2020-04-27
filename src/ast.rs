@@ -7,6 +7,12 @@ use crate::token::{self, Token};
 
 pub struct Name(String);
 
+impl fmt::Display for Name {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl<'a> TryFrom<Token<'a>> for Name {
     type Error = String;
 
@@ -64,6 +70,7 @@ impl TryFrom<token::Type> for BinaryOp {
 
 impl fmt::Display for BinaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #![allow(clippy::enum_glob_use)]
         use BinaryOp::*;
 
         let formatted_op = match self {
@@ -108,7 +115,9 @@ impl TryFrom<token::Type> for UnaryOp {
 
 impl fmt::Display for UnaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #![allow(clippy::enum_glob_use)]
         use UnaryOp::*;
+
         let formatted_op = match self {
             Not => "not ",
             Neg => "-",
@@ -159,10 +168,13 @@ impl<'a> TryFrom<Token<'a>> for Expr {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let formatted_expr = match self {
-            Expr::BinaryOp(op, lhs, rhs) => format!("({} {} {})", lhs, op, rhs),
-            Expr::UnaryOp(op, e) => format!("{}{}", op, e),
-            Expr::Table(table) => {
+        #![allow(clippy::enum_glob_use)]
+        use Expr::*;
+
+        let expr = match self {
+            BinaryOp(op, lhs, rhs) => format!("({} {} {})", lhs, op, rhs),
+            UnaryOp(op, e) => format!("{}{}", op, e),
+            Table(table) => {
                 let fields = table
                     .iter()
                     .map(|field| match field {
@@ -178,23 +190,23 @@ impl fmt::Display for Expr {
                     .join(", ");
                 format!("{{{}}}", fields)
             }
-            Expr::String(s) => s.clone(),
-            Expr::Number(n) => n.to_string(),
-            Expr::Bool(bool) => bool.to_string(),
-            Expr::Nil => "nil".to_owned(),
-            Expr::Vararg => "...".to_owned(),
-            Expr::Name(name) => name.0.to_owned(),
-            Expr::Index(e, index) => format!("{}[{}]", e, index),
-            Expr::Call(e, args) => {
+            String(s) => s.clone(),
+            Number(n) => n.to_string(),
+            Bool(bool) => bool.to_string(),
+            Nil => "nil".to_owned(),
+            Vararg => "...".to_owned(),
+            Name(name) => name.0.to_owned(),
+            Index(e, index) => format!("{}[{}]", e, index),
+            Call(e, args) => {
                 let args = args.iter().map(Expr::to_string).join(", ");
                 format!("{}({})", e, args)
             }
-            Expr::Member(e, name) => format!("{}.{}", e, name.0),
-            Expr::Method(e, name) => format!("{}:{}", e, name.0),
-            Expr::Function => "function".to_owned(),
+            Member(e, name) => format!("{}.{}", e, name.0),
+            Method(e, name) => format!("{}:{}", e, name.0),
+            Function => "function".to_owned(),
         };
 
-        write!(f, "{}", formatted_expr)
+        write!(f, "{}", expr)
     }
 }
 
@@ -227,4 +239,138 @@ pub enum Stmt {
     Return(Vec<Expr>),
     Until(Expr, Vec<Stmt>),
     While(Expr, Vec<Stmt>),
+}
+
+fn join<T: fmt::Display>(ts: &[T], sep: &str) -> String {
+    ts.iter().map(std::string::ToString::to_string).join(sep)
+}
+
+fn format_block(stmts: &[Stmt], level: usize) -> String {
+    stmts.iter().map(|stmt| stmt.format_level(level)).join("")
+}
+
+fn format_parameters(params: &[Name], is_vararg: bool) -> String {
+    let params = join(params, ", ");
+    let vararg = if is_vararg && !params.is_empty() {
+        ", ..."
+    } else if is_vararg {
+        "..."
+    } else {
+        ""
+    };
+    params + vararg
+}
+
+impl Stmt {
+    pub fn format(&self) -> String {
+        self.format_level(0)
+    }
+
+    fn format_level(&self, level: usize) -> String {
+        #![allow(clippy::enum_glob_use)]
+        use Stmt::*;
+
+        let indent = "  ".repeat(level);
+        let stmt = match self {
+            Assign(vars, exprs) => {
+                let vars = join(vars, ", ");
+                let exprs = join(exprs, ", ");
+                format!("{} = {}", vars, exprs)
+            }
+            Block(stmts) => {
+                let stmts = format_block(stmts, level + 1);
+                format!("do\n{}end", stmts)
+            }
+            Break => "break".to_owned(),
+            Call(func, args) => {
+                let args = join(args, ", ");
+                format!("{}({})", func, args)
+            }
+            For(index, start, end, step, block) => {
+                let step = step
+                    .as_ref()
+                    .map(|expr| format!(", {}", expr.to_string()))
+                    .unwrap_or_default();
+                let block = format_block(block, level + 1);
+                format!("for {} = {}, {}{} do\n{}{}end", index, start, end, step, block, indent)
+            }
+            ForIn(indexes, exprs, block) => {
+                let indexes = join(indexes, ", ");
+                let exprs = join(exprs, ", ");
+                let block = format_block(block, level + 1);
+                format!("for {} in {} do\n{}{}end", indexes, exprs, block, indent)
+            }
+            Function(name, params, is_vararg, block) => {
+                let name = join(name, ".");
+                let params = format_parameters(params, *is_vararg);
+                let block = format_block(block, level + 1);
+                format!("function {}({})\n{}{}end", name, params, block, indent)
+            }
+            If(cond, then_block, else_block) => {
+                let then_block = format_block(then_block, level + 1);
+                let else_block = format_block(else_block, level + 1);
+                format!("if {} then\n{}{}else\n{}{}end", cond, then_block, indent, else_block, indent)
+            }
+            Method(path, name, params, is_vararg, block) => {
+                let path = join(path, ".");
+                let params = format_parameters(params, *is_vararg);
+                let block = format_block(block, level + 1);
+                format!("function {}:{}({})\n{}{}end", path, name, params, block, indent)
+            }
+            MethodCall(object, name, args) => {
+                let args = join(args, ", ");
+                format!("{}:{}({})", object, name, args)
+            }
+            LocalAssign(names, exprs) => {
+                let names = join(names, ", ");
+                let exprs = join(exprs, ", ");
+                if exprs.is_empty() {
+                    format!("local {}", names)
+                } else {
+                    format!("local {} = {}", names, exprs)
+                }
+            }
+            LocalFunction(name, params, is_vararg, block) => {
+                let params = format_parameters(params, *is_vararg);
+                let block = format_block(block, level + 1);
+                format!("local function {}({})\n{}{}end", name, params, block, indent)
+            }
+            Return(exprs) => {
+                let exprs = join(exprs, ", ");
+                format!("return {}", exprs)
+            }
+            Until(cond, block) => {
+                let block = format_block(block, level + 1);
+                format!("repeat\n{}{}until {}", block, indent, cond)
+            }
+            While(cond, block) => {
+                let block = format_block(block, level + 1);
+                format!("while {} do\n{}{}end", cond, block, indent)
+            }
+        };
+
+        format!("{}{}\n", indent, stmt)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn format_statement() {
+        use super::{Expr, Name, Stmt};
+        let stmt = Stmt::Block(vec![
+            Stmt::LocalAssign(vec![Name("a".to_owned())], vec![]),
+            Stmt::While(Expr::Bool(true), vec![Stmt::Break]),
+        ]);
+
+        assert_eq!(
+            stmt.format(),
+r#"do
+  local a
+  while true do
+    break
+  end
+end
+"#);
+    }
 }
