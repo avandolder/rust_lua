@@ -308,8 +308,24 @@ impl Stmt {
             }
             If(cond, then_block, else_block) => {
                 let then_block = format_block(then_block, level + 1);
-                let else_block = format_block(else_block, level + 1);
-                format!("if {} then\n{}{}else\n{}{}end", cond, then_block, indent, else_block, indent)
+
+                let mut block = else_block;
+                let mut else_block = String::new();
+                while let Some(If(c, t, e)) = block.first() {
+                    if block.len() > 1 {
+                        break;
+                    }
+
+                    let t = format_block(t, level + 1);
+                    else_block = else_block + &format!("{}elseif {} then\n{}", indent, c, t);
+                    block = e;
+                }
+
+                if !block.is_empty() {
+                    else_block = format!("{}{}else\n{}", else_block, indent, format_block(block, level + 1));
+                }
+
+                format!("if {} then\n{}{}{}end", cond, then_block, else_block, indent)
             }
             Method(path, name, params, is_vararg, block) => {
                 let path = join(path, ".");
@@ -365,12 +381,48 @@ mod tests {
 
         assert_eq!(
             stmt.format(),
-r#"do
+            r#"do
   local a
   while true do
     break
   end
 end
-"#);
+"#
+        );
+    }
+
+    #[test]
+    fn format_elseif() {
+        use super::{Expr, Name, Stmt};
+
+        let stmt = Stmt::If(
+            Expr::Bool(true),
+            vec![
+                Stmt::Call(Expr::Name(Name("print".to_owned())), vec![]),
+            ],
+            vec![
+                Stmt::If(
+                    Expr::Nil,
+                    vec![
+                        Stmt::Return(vec![Expr::Table(vec![])]),
+                    ],
+                    vec![
+                        Stmt::LocalAssign(vec![Name("a".to_owned())], vec![Expr::Number(1.0)]),
+                    ],
+                ),
+            ],
+        );
+
+        assert_eq!(
+            stmt.format(),
+            r#"if true then
+  print()
+elseif nil then
+  return {}
+else
+  local a = 1
+end
+"#
+        );
     }
 }
