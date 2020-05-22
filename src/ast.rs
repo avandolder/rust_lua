@@ -317,7 +317,7 @@ impl Stmt {
                     }
 
                     let t = format_block(t, level + 1);
-                    else_block = else_block + &format!("{}elseif {} then\n{}", indent, c, t);
+                    else_block.push_str(&format!("{}elseif {} then\n{}", indent, c, t));
                     block = e;
                 }
 
@@ -397,20 +397,12 @@ end
 
         let stmt = Stmt::If(
             Expr::Bool(true),
-            vec![
-                Stmt::Call(Expr::Name(Name("print".to_owned())), vec![]),
-            ],
-            vec![
-                Stmt::If(
-                    Expr::Nil,
-                    vec![
-                        Stmt::Return(vec![Expr::Table(vec![])]),
-                    ],
-                    vec![
-                        Stmt::LocalAssign(vec![Name("a".to_owned())], vec![Expr::Number(1.0)]),
-                    ],
-                ),
-            ],
+            vec![Stmt::Call(Expr::Name(Name("print".to_owned())), vec![])],
+            vec![Stmt::If(
+                Expr::Nil,
+                vec![Stmt::Return(vec![Expr::Table(vec![])])],
+                vec![Stmt::LocalAssign(vec![Name("a".to_owned())], vec![Expr::Number(1.0)])],
+            )],
         );
 
         assert_eq!(
