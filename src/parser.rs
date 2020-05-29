@@ -1,8 +1,8 @@
 use std::convert::TryInto;
 use std::iter::Peekable;
 
-use crate::error::Result;
 use crate::ast::{Expr, Field};
+use crate::error::Result;
 use crate::token::{self, Token};
 
 struct Parser<'a, I: Iterator<Item = Result<'a, Token<'a>>>> {
@@ -407,6 +407,13 @@ pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = Result<'a, Token<'a>>>>) 
     assert!(parser.tokens.next().is_none());
 }
 
+pub fn parse_expression<'a>(
+    tokens: Peekable<impl Iterator<Item = Result<'a, Token<'a>>>>
+) -> Expr {
+    let mut parser = Parser { tokens };
+    parser.parse_expression()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -472,7 +479,13 @@ mod tests {
         );
 
         assert_eq!(
-            parse_tokens!((Str, ['"', '"']), Concat, (Str, ['"', '"']), Concat, (Str, ['"', '"'])),
+            parse_tokens!(
+                (Str, ['"', '"']),
+                Concat,
+                (Str, ['"', '"']),
+                Concat,
+                (Str, ['"', '"'])
+            ),
             "(\"\" .. (\"\" .. \"\"))",
         );
     }
