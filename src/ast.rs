@@ -132,6 +132,19 @@ pub enum Field {
     Single(Expr),
 }
 
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Field::Pair(key, value) => if let Expr::Name(name) = key {
+                write!(f, "{} = {}", name.0, value)
+            } else {
+                write!(f, "[{}] = {}", key, value)
+            },
+            Field::Single(value) => write!(f, "{}", value),
+        }
+    }
+}
+
 pub enum Expr {
     BinaryOp(BinaryOp, Box<Expr>, Box<Expr>),
     UnaryOp(UnaryOp, Box<Expr>),
@@ -168,45 +181,32 @@ impl<'a> TryFrom<Token<'a>> for Expr {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        #![allow(clippy::enum_glob_use)]
-        use Expr::*;
-
-        let expr = match self {
-            BinaryOp(op, lhs, rhs) => format!("({} {} {})", lhs, op, rhs),
-            UnaryOp(op, e) => format!("{}{}", op, e),
-            Table(table) => {
-                let fields = table
-                    .iter()
-                    .map(|field| match field {
-                        Field::Pair(key, value) => {
-                            if let Expr::Name(name) = key {
-                                format!("{} = {}", name.0, value)
-                            } else {
-                                format!("[{}] = {}", key, value)
-                            }
-                        }
-                        Field::Single(value) => format!("{}", value),
-                    })
-                    .join(", ");
-                format!("{{{}}}", fields)
+        match self {
+            Expr::BinaryOp(op, lhs, rhs) => write!(f, "({} {} {})", lhs, op, rhs),
+            Expr::UnaryOp(op, e) => write!(f, "{}{}", op, e),
+            Expr::Table(table) => {
+                write!(f, "{{")?;
+                table.first().iter().try_for_each(|field| write!(f, "{}", field))?;
+                table.iter().skip(1).try_for_each(|field| write!(f, ", {}", field))?;
+                write!(f, "}}")
             }
-            String(s) => s.clone(),
-            Number(n) => n.to_string(),
-            Bool(bool) => bool.to_string(),
-            Nil => "nil".to_owned(),
-            Vararg => "...".to_owned(),
-            Name(name) => name.0.to_owned(),
-            Index(e, index) => format!("{}[{}]", e, index),
-            Call(e, args) => {
-                let args = args.iter().map(Expr::to_string).join(", ");
-                format!("{}({})", e, args)
+            Expr::String(s) => write!(f, "{}", s),
+            Expr::Number(n) => write!(f, "{}", n),
+            Expr::Bool(b) => write!(f, "{}", b),
+            Expr::Nil => write!(f, "nil"),
+            Expr::Vararg => write!(f, "..."),
+            Expr::Name(name) => write!(f, "{}", name.0),
+            Expr::Index(e, index) => write!(f, "{}[{}]", e, index),
+            Expr::Call(e, args) => {
+                write!(f, "{}(", e)?;
+                args.first().iter().try_for_each(|arg| write!(f, "{}", arg))?;
+                args.iter().skip(1).try_for_each(|arg| write!(f, ", {}", arg))?;
+                write!(f, ")")
             }
-            Member(e, name) => format!("{}.{}", e, name.0),
-            Method(e, name) => format!("{}:{}", e, name.0),
-            Function => "function".to_owned(),
-        };
-
-        write!(f, "{}", expr)
+            Expr::Member(e, name) => write!(f, "{}.{}", e, name.0),
+            Expr::Method(e, name) => write!(f, "{}:{}", e, name.0),
+            Expr::Function => write!(f, "function"),
+        }
     }
 }
 
