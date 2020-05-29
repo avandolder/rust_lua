@@ -1,7 +1,7 @@
-use rust_lua::{lexer, parser};
+use rust_lua::{interpreter, lexer, parser};
 
 fn main() {
-    let src = r#"local x = {}
+    /*let src = r#"local x = {}
 local y = "hello world \nbye"
 local z = -1.2e-10
 a = {b=1, ['c']="hahaha", .3}
@@ -21,10 +21,14 @@ else
     print("well")
 end
 -- comment
-print(#x)"#
+print(#x)"#*/
+    let src = "1 / 3 - '0.1'"
         .chars()
         .collect::<Vec<_>>();
 
     let tokens = lexer::tokenize(&src);
-    parser::parse(tokens);
+    let expr = parser::parse_expression(tokens);
+    print!("{}", expr);
+    let value = interpreter::eval_expr(expr);
+    println!(" == {}", value);
 }
