@@ -2,7 +2,7 @@ use crate::ast::{BinaryOp, Expr, UnaryOp};
 use crate::error;
 use crate::value::Value;
 
-fn parse_string(s: String) -> String {
+fn parse_string(s: &str) -> String {
     let opener = s.chars().next().unwrap();
 
     s.chars().skip(1).take_while(|&c| c != opener).collect()
@@ -13,7 +13,7 @@ pub fn eval_expr(expr: Expr) -> Value {
         Expr::Nil => Value::Nil,
         Expr::Bool(value) => Value::Bool(value),
         Expr::Number(value) => Value::Number(value),
-        Expr::String(value) => Value::String(parse_string(value)),
+        Expr::String(value) => Value::String(parse_string(&value)),
 
         Expr::Function => todo!(),
         Expr::Table(_table) => todo!(),
