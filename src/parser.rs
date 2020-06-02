@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::iter::Peekable;
 
-use crate::ast::{Expr, Field};
+use crate::ast::{Expr, Field, FunctionArity, FunctionType, Name, Stmt};
 use crate::error::Result;
 use crate::token::{self, Token};
 
@@ -33,37 +33,44 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         }
     }
 
-    fn parse_block(&mut self) {
+    fn parse_block(&mut self) -> Vec<Stmt> {
+        let mut stmts = vec![];
         loop {
             match self.peek_type() {
                 Some(token::Return) => {
                     self.consume();
-                    self.parse_expression_list();
+                    let exprs = self.parse_expression_list();
+                    stmts.push(Stmt::Return(exprs));
                     break;
                 }
                 Some(token::Break) => {
                     self.consume();
+                    stmts.push(Stmt::Break);
                     break;
                 }
-                Some(token::End) | Some(token::Until) | Some(token::ElseIf) | Some(token::Else) => {
-                    break;
-                }
-                Some(_) => self.parse_statement(),
-                None => break,
+                Some(token::End)
+                | Some(token::Until)
+                | Some(token::ElseIf)
+                | Some(token::Else)
+                | None =>
+                    break,
+                Some(_) => stmts.push(self.parse_statement()),
             }
 
             if let Some(token::Semicolon) = self.peek_type() {
                 self.consume();
             }
         }
+        stmts
     }
 
-    fn parse_statement(&mut self) {
+    fn parse_statement(&mut self) -> Stmt {
         match self.peek_type().unwrap() {
             token::Do => {
                 self.consume();
-                self.parse_block();
+                let stmts = self.parse_block();
                 self.expect(token::End);
+                Stmt::Block(stmts)
             }
             token::While => self.parse_while(),
             token::Repeat => self.parse_repeat(),
@@ -74,124 +81,152 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
             token::Name | token::LParen => {
                 // This call will either parse a variable assignment statement
                 // (potentially a list assignment) or a function call statement.
-                self.parse_prefixexp();
+                let expr = self.parse_prefixexp();
 
-                while let Some(token::Comma) = self.peek_type() {
-                    self.parse_prefixexp();
-                }
+                if let Some(token::Comma) | Some(token::Assign) = self.peek_type() {
+                    let mut lhs = vec![expr];
+                    while let Some(token::Comma) = self.peek_type() {
+                        lhs.push(self.parse_prefixexp());
+                    }
 
-                if let Some(token::Assign) = self.peek_type() {
-                    self.consume();
-                    self.parse_expression_list();
+                    self.expect(token::Assign);
+                    let rhs = self.parse_expression_list();
+                    Stmt::Assign(lhs, rhs)
+                } else {
+                    todo!()
                 }
             }
             _ => panic!(),
         }
     }
 
-    fn parse_while(&mut self) {
+    fn parse_while(&mut self) -> Stmt {
         self.expect(token::While);
-        self.parse_expression();
+        let cond = self.parse_expression();
         self.expect(token::Do);
-        self.parse_block();
+        let body = self.parse_block();
         self.expect(token::End);
+        Stmt::While(cond, body)
     }
 
-    fn parse_repeat(&mut self) {
+    fn parse_repeat(&mut self) -> Stmt {
         self.expect(token::Repeat);
-        self.parse_block();
+        let body = self.parse_block();
         self.expect(token::Until);
-        self.parse_expression();
+        let cond = self.parse_expression();
+        Stmt::Until(cond, body)
     }
 
-    fn parse_if(&mut self) {
+    fn parse_if(&mut self) -> Stmt {
         self.expect(token::If);
-        self.parse_expression();
+        let cond = self.parse_expression();
         self.expect(token::Then);
-        self.parse_block();
-
-        while let Some(token::ElseIf) = self.peek_type() {
-            self.consume();
-            self.parse_expression();
-            self.expect(token::Then);
-            self.parse_block();
-        }
-
-        if let Some(token::Else) = self.peek_type() {
-            self.consume();
-            self.parse_block();
-        }
-
-        self.expect(token::End);
+        let body = self.parse_block();
+        Stmt::If(cond, body, self.parse_elseif())
     }
 
-    fn parse_for(&mut self) {
+    fn parse_elseif(&mut self) -> Vec<Stmt> {
+        match self.consume().ty {
+            token::ElseIf => {
+                let cond = self.parse_expression();
+                self.expect(token::Then);
+                let body = self.parse_block();
+                vec![Stmt::If(cond, body, self.parse_elseif())]
+            }
+            token::Else => {
+                let body = self.parse_block();
+                self.expect(token::End);
+                body
+            }
+            token::End => vec![],
+            _ => panic!(),
+        }
+    }
+
+    fn parse_for(&mut self) -> Stmt {
         self.expect(token::For);
-        self.expect(token::Name);
+        let name = self.expect(token::Name).try_into().unwrap();
 
         match self.consume().ty {
             token::Comma => {
-                self.parse_name_list();
+                let mut names = vec![name];
+                names.extend(self.parse_name_list());
                 self.expect(token::In);
-                self.parse_expression_list();
+                let exprs = self.parse_expression_list();
+
+                self.expect(token::Do);
+                let body = self.parse_block();
+                self.expect(token::End);
+
+                Stmt::ForIn(names, exprs, body)
             }
             token::Assign => {
-                self.parse_expression();
+                let start = self.parse_expression();
                 self.expect(token::Comma);
-                self.parse_expression();
+                let end = self.parse_expression();
 
-                if let Some(token::Comma) = self.peek_type() {
+                let step = if let Some(token::Comma) = self.peek_type() {
                     self.consume();
-                    self.parse_expression();
-                }
+                    Some(self.parse_expression())
+                } else {
+                    None
+                };
+
+                self.expect(token::Do);
+                let body = self.parse_block();
+                self.expect(token::End);
+
+                Stmt::For(name, start, end, step, body)
             }
             _ => panic!(),
         }
-
-        self.expect(token::Do);
-        self.parse_block();
-        self.expect(token::End);
     }
 
-    fn parse_function(&mut self) {
+    fn parse_function(&mut self) -> Stmt {
         self.expect(token::Function);
-        self.parse_funcname();
-        self.parse_funcbody();
+        let (ftype, names) = self.parse_funcname();
+        let (params, arity, body) = self.parse_funcbody();
+        Stmt::Function(ftype, names, params, arity, body)
     }
 
-    fn parse_funcbody(&mut self) {
-        self.parse_parameter_list();
-        self.parse_block();
+    fn parse_funcbody(&mut self) -> (Vec<Name>, FunctionArity, Vec<Stmt>) {
+        let (params, arity) = self.parse_parameter_list();
+        let body = self.parse_block();
         self.expect(token::End);
+        (params, arity, body)
     }
 
-    fn parse_funcname(&mut self) {
-        self.expect(token::Name);
+    fn parse_funcname(&mut self) -> (FunctionType, Vec<Name>) {
+        let mut names = vec![self.expect(token::Name).try_into().unwrap()];
 
         while let Some(token::Period) = self.peek_type() {
             self.consume();
-            self.expect(token::Name);
+            names.push(self.expect(token::Name).try_into().unwrap());
         }
 
         if let Some(token::Colon) = self.peek_type() {
             self.consume();
-            self.expect(token::Name);
+            names.push(self.expect(token::Name).try_into().unwrap());
+            (FunctionType::Method, names)
+        } else {
+            (FunctionType::Static, names)
         }
     }
 
-    fn parse_local(&mut self) {
+    fn parse_local(&mut self) -> Stmt {
         self.expect(token::Local);
 
         if let Some(token::Function) = self.peek_type() {
             self.consume();
-            self.expect(token::Name);
-            self.parse_funcbody();
-            return;
+            let name = self.expect(token::Name).try_into().unwrap();
+            let (params, arity, body) = self.parse_funcbody();
+            Stmt::LocalFunction(name, params, arity, body)
+        } else {
+            let names = self.parse_name_list();
+            self.expect(token::Assign);
+            let exprs = self.parse_expression_list();
+            Stmt::LocalAssign(names, exprs)
         }
-
-        self.parse_name_list();
-        self.expect(token::Assign);
-        self.parse_expression_list();
     }
 
     fn parse_table(&mut self) -> Expr {
@@ -232,24 +267,25 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         }
     }
 
-    fn parse_name_list(&mut self) {
-        self.expect(token::Name);
-
+    fn parse_name_list(&mut self) -> Vec<Name> {
+        let mut names = vec![self.expect(token::Name).try_into().unwrap()];
         while let Some(token::Comma) = self.peek_type() {
             self.consume();
-            self.expect(token::Name);
+            names.push(self.expect(token::Name).try_into().unwrap());
         }
+        names
     }
 
-    fn parse_parameter_list(&mut self) {
+    fn parse_parameter_list(&mut self) -> (Vec<Name>, FunctionArity) {
         self.expect(token::LParen);
 
+        let mut params = vec![];
         loop {
             if let Some(token::Vararg) = self.peek_type() {
                 self.consume();
-                break;
+                return (params, FunctionArity::Variable);
             } else if let Some(token::Name) = self.peek_type() {
-                self.consume();
+                params.push(self.consume().try_into().unwrap());
             }
 
             if let Some(token::Comma) = self.peek_type() {
@@ -261,6 +297,7 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         }
 
         self.expect(token::RParen);
+        (params, FunctionArity::Fixed)
     }
 
     fn parse_prefixexp(&mut self) -> Expr {
@@ -401,10 +438,11 @@ fn binary_precedence(op: token::Type) -> Option<(i32, i32)> {
     })
 }
 
-pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = Result<'a, Token<'a>>>>) {
+pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = Result<'a, Token<'a>>>>) -> Vec<Stmt> {
     let mut parser = Parser { tokens };
-    parser.parse_block();
+    let stmts = parser.parse_block();
     assert!(parser.tokens.next().is_none());
+    stmts
 }
 
 pub fn parse_expression<'a>(

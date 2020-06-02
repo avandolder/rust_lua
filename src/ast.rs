@@ -223,6 +223,18 @@ fn name(tok: &Token) -> Expr {
     Expr::Name(Name(tok.raw.iter().collect::<String>()))
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum FunctionArity {
+    Variable,
+    Fixed,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum FunctionType {
+    Method,
+    Static,
+}
+
 pub enum Stmt {
     Assign(Vec<Expr>, Vec<Expr>),
     Block(Vec<Stmt>),
@@ -230,12 +242,10 @@ pub enum Stmt {
     Call(Expr, Vec<Expr>),
     For(Name, Expr, Expr, Option<Expr>, Vec<Stmt>),
     ForIn(Vec<Name>, Vec<Expr>, Vec<Stmt>),
-    Function(Vec<Name>, Vec<Name>, bool, Vec<Stmt>),
+    Function(FunctionType, Vec<Name>, Vec<Name>, FunctionArity, Vec<Stmt>),
     If(Expr, Vec<Stmt>, Vec<Stmt>),
-    Method(Vec<Name>, Name, Vec<Name>, bool, Vec<Stmt>),
-    MethodCall(Expr, Name, Vec<Expr>),
     LocalAssign(Vec<Name>, Vec<Expr>),
-    LocalFunction(Name, Vec<Name>, bool, Vec<Stmt>),
+    LocalFunction(Name, Vec<Name>, FunctionArity, Vec<Stmt>),
     Return(Vec<Expr>),
     Until(Expr, Vec<Stmt>),
     While(Expr, Vec<Stmt>),
@@ -249,12 +259,14 @@ fn format_block(stmts: &[Stmt], level: usize) -> String {
     stmts.iter().map(|stmt| stmt.format_level(level)).join("")
 }
 
-fn format_parameters(params: &[Name], is_vararg: bool) -> String {
+fn format_parameters(params: &[Name], arity: FunctionArity) -> String {
     let params = join(params, ", ");
-    let vararg = if is_vararg && !params.is_empty() {
-        ", ..."
-    } else if is_vararg {
-        "..."
+    let vararg = if let FunctionArity::Variable = arity {
+        if params.is_empty() {
+            "..."
+        } else {
+            ", ..."
+        }
     } else {
         ""
     };
@@ -300,9 +312,9 @@ impl Stmt {
                 let block = format_block(block, level + 1);
                 format!("for {} in {} do\n{}{}end", indexes, exprs, block, indent)
             }
-            Function(name, params, is_vararg, block) => {
+            Function(_ftype, name, params, arity, block) => {
                 let name = join(name, ".");
-                let params = format_parameters(params, *is_vararg);
+                let params = format_parameters(params, *arity);
                 let block = format_block(block, level + 1);
                 format!("function {}({})\n{}{}end", name, params, block, indent)
             }
@@ -327,16 +339,6 @@ impl Stmt {
 
                 format!("if {} then\n{}{}{}end", cond, then_block, else_block, indent)
             }
-            Method(path, name, params, is_vararg, block) => {
-                let path = join(path, ".");
-                let params = format_parameters(params, *is_vararg);
-                let block = format_block(block, level + 1);
-                format!("function {}:{}({})\n{}{}end", path, name, params, block, indent)
-            }
-            MethodCall(object, name, args) => {
-                let args = join(args, ", ");
-                format!("{}:{}({})", object, name, args)
-            }
             LocalAssign(names, exprs) => {
                 let names = join(names, ", ");
                 let exprs = join(exprs, ", ");
@@ -346,8 +348,8 @@ impl Stmt {
                     format!("local {} = {}", names, exprs)
                 }
             }
-            LocalFunction(name, params, is_vararg, block) => {
-                let params = format_parameters(params, *is_vararg);
+            LocalFunction(name, params, arity, block) => {
+                let params = format_parameters(params, *arity);
                 let block = format_block(block, level + 1);
                 format!("local function {}({})\n{}{}end", name, params, block, indent)
             }
