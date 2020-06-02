@@ -3,18 +3,20 @@ use std::cmp::{Ordering, PartialEq, PartialOrd};
 use std::fmt;
 use std::rc::Rc;
 
-use crate::ast::Field;
+#[derive(Clone)]
+pub struct Function;
 
-pub struct Table(pub Vec<Field>);
+#[derive(Clone)]
+pub struct Table(Vec<(Handle, Handle)>);
 
 #[derive(Clone)]
 pub enum Value {
     Bool(bool),
-    Function(Rc<RefCell<()>>),
+    Function(Function),
     Nil,
     Number(f64),
     String(String),
-    Table(Rc<RefCell<Table>>),
+    Table(Table),
 
     // Unimplemented:
     Thread,
@@ -48,7 +50,7 @@ impl Value {
     pub fn length(&self) -> usize {
         match self {
             Value::String(value) => value.len(),
-            Value::Table(value) => value.borrow().0.len(),
+            Value::Table(value) => value.0.len(),
             _ => panic!(),
         }
     }
@@ -61,8 +63,8 @@ impl PartialEq for Value {
             (Value::Number(lhs), Value::Number(rhs)) => lhs == rhs,
             (Value::String(lhs), Value::String(rhs)) => lhs == rhs,
             (Value::Nil, Value::Nil) => true,
-            (Value::Table(lhs), Value::Table(rhs)) => Rc::ptr_eq(lhs, rhs),
-            (Value::Function(lhs), Value::Function(rhs)) => Rc::ptr_eq(lhs, rhs),
+            (Value::Table(_lhs), Value::Table(_rhs)) => todo!(),
+            (Value::Function(_lhs), Value::Function(_rhs)) => todo!(),
             _ => false,
         }
     }
@@ -90,5 +92,31 @@ impl fmt::Display for Value {
             Value::Thread => todo!(),
             Value::Userdata => todo!(),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct Handle(Rc<RefCell<Value>>);
+
+impl Handle {
+    pub fn equals(&self, other: &Handle) -> bool {
+        if self.is_table() && other.is_table() {
+            Rc::ptr_eq(&self.0, &other.0)
+        } else {
+            *self.0.borrow() == *other.0.borrow()
+        }
+    }
+
+    pub fn is_table(&self) -> bool {
+        match *self.0.borrow() {
+            Value::Table(_) => true,
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Display for Handle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.borrow().fmt(f)
     }
 }

@@ -1,9 +1,6 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use crate::ast::{BinaryOp, Expr, UnaryOp};
 use crate::error;
-use crate::value::{Table, Value};
+use crate::value::Value;
 
 fn parse_string(s: String) -> String {
     let opener = s.chars().next().unwrap();
@@ -18,8 +15,8 @@ pub fn eval_expr(expr: Expr) -> Value {
         Expr::Number(value) => Value::Number(value),
         Expr::String(value) => Value::String(parse_string(value)),
 
-        Expr::Function => Value::Function(Rc::new(RefCell::new(()))),
-        Expr::Table(table) => Value::Table(Rc::new(RefCell::new(Table(table)))),
+        Expr::Function => todo!(),
+        Expr::Table(_table) => todo!(),
 
         Expr::BinaryOp(op, lhs, rhs) => {
             let (lhs, rhs) = (eval_expr(*lhs), eval_expr(*rhs));
