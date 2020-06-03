@@ -18,6 +18,8 @@ pub enum Value {
     String(String),
     Table(Table),
 
+    Handle(Handle),
+
     // Unimplemented:
     Thread,
     Userdata,
@@ -89,6 +91,7 @@ impl fmt::Display for Value {
             Value::Number(value) => write!(f, "{}", value),
             Value::String(value) => write!(f, "{}", value),
             Value::Table(_table) => todo!(),
+            Value::Handle(_handle) => todo!(),
             Value::Thread => todo!(),
             Value::Userdata => todo!(),
         }
