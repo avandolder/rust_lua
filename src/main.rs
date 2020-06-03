@@ -22,7 +22,8 @@ else
 end
 -- comment
 print(#x)"#*/
-    let src = "return a, 1 / 3 - '0.1'"
+    let src = r#"a = 1/3 - '0.1'
+return a"#
         .chars()
         .collect::<Vec<_>>();
 

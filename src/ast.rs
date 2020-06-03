@@ -7,6 +7,12 @@ use crate::token::{self, Token};
 
 pub struct Name(String);
 
+impl Name {
+    pub fn as_str<'a>(&'a self) -> &'a str {
+        self.0.as_str()
+    }
+}
+
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)

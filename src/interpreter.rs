@@ -105,11 +105,34 @@ impl Interpreter {
             }
 
             Expr::Vararg => Value::List(self.stack_frame.last().unwrap().args.clone()),
-            Expr::Name(_name) => todo!(),
+            Expr::Name(name) => if let Some(handle) = self.scope.get(name.as_str()) {
+                    handle.value()
+                } else if let Some(handle) = self.globals.get(name.as_str()) {
+                    handle.value()
+                } else {
+                    Value::Nil
+                },
             Expr::Index(_table_path, _index) => todo!(),
             Expr::Call(_function_path, _args) => todo!(),
             Expr::Member(_table_path, _name) => todo!(),
             Expr::Method(_table_path, _name) => todo!(),
+        }
+    }
+
+    fn resolve(&mut self, expr: &Expr) -> Handle {
+        match expr {
+            Expr::Name(name) => {
+                if let Some(handle) = self.scope.get(name.as_str()) {
+                    handle.clone()
+                } else if let Some(handle) = self.globals.get(name.as_str()) {
+                    handle.clone()
+                } else {
+                    let new_handle = Handle::new();
+                    self.globals.insert(name.to_string(), new_handle.clone());
+                    new_handle
+                }
+            }
+            _ => todo!(),
         }
     }
 
@@ -118,10 +141,7 @@ impl Interpreter {
             Stmt::Assign(lhs, rhs) => {
                 for (handle, value) in lhs.iter().zip(rhs.iter()) {
                     let value = self.evaluate(value);
-                    match self.evaluate(handle) {
-                        Value::Handle(handle) => *handle.0.borrow_mut() = value,
-                        _ => Branch::throw(error::InvalidExpressionInAssignment)?,
-                    }
+                    self.resolve(handle).set(value);
                 }
             },
 
