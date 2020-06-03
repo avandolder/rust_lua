@@ -29,6 +29,6 @@ print(#x)"#*/
     let tokens = lexer::tokenize(&src);
     let expr = parser::parse_expression(tokens);
     print!("{}", expr);
-    let value = interpreter::eval_expr(expr);
+    let value = interpreter::interpret(expr).unwrap();
     println!(" == {}", value);
 }
