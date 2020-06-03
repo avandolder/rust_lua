@@ -4,9 +4,14 @@ use crate::ast::{BinaryOp, Expr, Stmt, UnaryOp};
 use crate::error;
 use crate::value::{Handle, Value};
 
-pub struct Interpreter {
+struct Frame {
+    args: Vec<Value>,
+}
+
+struct Interpreter {
     globals: HashMap<String, Handle>,
     scope: HashMap<String, Handle>,
+    stack_frame: Vec<Frame>,
 }
 
 enum Branch {
@@ -37,10 +42,11 @@ enum ScopeType {
 }
 
 impl Interpreter {
-    fn new() -> Self {
+    fn new(args: Vec<Value>) -> Self {
         Interpreter {
             globals: HashMap::new(),
             scope: HashMap::new(),
+            stack_frame: vec![Frame {args}],
         }
     }
 
@@ -98,7 +104,7 @@ impl Interpreter {
                 }
             }
 
-            Expr::Vararg => todo!(),
+            Expr::Vararg => Value::List(self.stack_frame.last().unwrap().args.clone()),
             Expr::Name(_name) => todo!(),
             Expr::Index(_table_path, _index) => todo!(),
             Expr::Call(_function_path, _args) => todo!(),
@@ -196,8 +202,8 @@ fn parse_string(s: &str) -> String {
     s.chars().skip(1).take_while(|&c| c != opener).collect()
 }
 
-pub fn interpret(ast: Vec<Stmt>) -> error::Result<'static, Value> {
-    let mut interpreter = Interpreter::new();
+pub fn interpret(ast: Vec<Stmt>, args: Vec<Value>) -> error::Result<'static, Value> {
+    let mut interpreter = Interpreter::new(args);
     for stmt in &ast {
         match interpreter.execute(stmt) {
             Ok(()) => (),

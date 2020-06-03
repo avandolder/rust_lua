@@ -19,6 +19,7 @@ pub enum Value {
     Table(Table),
 
     Handle(Handle),
+    List(Vec<Value>),
 
     // Unimplemented:
     Thread,
@@ -92,6 +93,7 @@ impl fmt::Display for Value {
             Value::String(value) => write!(f, "{}", value),
             Value::Table(_table) => todo!(),
             Value::Handle(_handle) => todo!(),
+            Value::List(_list) => todo!(),
             Value::Thread => todo!(),
             Value::Userdata => todo!(),
         }
@@ -109,9 +111,7 @@ impl Handle {
     pub fn from_value(value: Value) -> Self {
         Self(Rc::new(RefCell::new(value)))
     }
-}
 
-impl Handle {
     pub fn equals(&self, other: &Handle) -> bool {
         if self.is_table() && other.is_table() {
             Rc::ptr_eq(&self.0, &other.0)

@@ -22,13 +22,13 @@ else
 end
 -- comment
 print(#x)"#*/
-    let src = "return 1 / 3 - '0.1'"
+    let src = "return a, 1 / 3 - '0.1'"
         .chars()
         .collect::<Vec<_>>();
 
     let tokens = lexer::tokenize(&src);
     let ast = parser::parse(tokens);
     print!("{}", ast.iter().map(|stmt| stmt.format()).collect::<Vec<_>>().join("\n"));
-    let value = interpreter::interpret(ast).unwrap();
+    let value = interpreter::interpret(ast, vec![]).unwrap();
     println!(" == {}", value);
 }
