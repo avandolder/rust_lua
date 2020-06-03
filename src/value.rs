@@ -93,7 +93,10 @@ impl fmt::Display for Value {
             Value::String(value) => write!(f, "{}", value),
             Value::Table(_table) => todo!(),
             Value::Handle(_handle) => todo!(),
-            Value::List(_list) => todo!(),
+            Value::List(list) => {
+                list.iter().take(1).try_for_each(|value| write!(f, "{}", value))?;
+                list.iter().skip(1).try_for_each(|value| write!(f, ", {}", value))
+            }
             Value::Thread => todo!(),
             Value::Userdata => todo!(),
         }

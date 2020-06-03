@@ -231,7 +231,7 @@ pub fn interpret(ast: Vec<Stmt>, args: Vec<Value>) -> error::Result<'static, Val
     for stmt in &ast {
         match interpreter.execute(stmt) {
             Ok(()) => (),
-            Err(Branch::Return(values)) => return Ok(values[0].clone()),
+            Err(Branch::Return(values)) => return Ok(Value::List(values)),
             Err(Branch::Throw(err)) => return Err(err),
             Err(Branch::Break) => panic!("top-level break statment"),
         }

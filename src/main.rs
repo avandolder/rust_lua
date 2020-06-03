@@ -24,7 +24,7 @@ end
 print(#x)"#*/
     let src = r#"a = 1/3
 local b = '0.1'
-return a - b"#
+return a - b, c"#
         .chars()
         .collect::<Vec<_>>();
 
@@ -32,5 +32,5 @@ return a - b"#
     let ast = parser::parse(tokens);
     print!("{}", ast.iter().map(|stmt| stmt.format()).collect::<Vec<_>>().join("\n"));
     let value = interpreter::interpret(ast, vec![]).unwrap();
-    println!(" == {}", value);
+    println!("==> {}", value);
 }
