@@ -143,6 +143,7 @@ impl Interpreter {
                     let value = self.evaluate(value);
                     self.resolve(handle).set(value);
                 }
+                // TODO: evaluate any remaining handles/values, they could have side-effects.
             },
 
             Stmt::Block(body) => self.execute_block(body, ScopeType::Inner)?,
@@ -191,9 +192,12 @@ impl Interpreter {
             }
 
             Stmt::LocalAssign(lhs, rhs) => {
-                let handles = lhs.iter().map(|name| {
-                    let name = name.to_string();
-                });
+                for (name, expr) in lhs.iter().zip(rhs.iter()) {
+                    let value = self.evaluate(expr);
+                    let handle = Handle::from_value(value);
+                    self.scope.insert(name.to_string(), handle);
+                }
+                // TODO: evaluate any remaining exprs, they could have side-effects.
             }
 
             Stmt::LocalFunction(_name, _params, _farity, _body) => todo!(),
