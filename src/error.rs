@@ -5,6 +5,16 @@ pub enum Type<'a> {
     MalformedNumber,
     InvalidEscapeSequence(&'a [char]),
     UnexpectedNewlineInString,
+    InvalidExpressionInAssignment,
+}
+
+impl<'a> Type<'a> {
+    pub fn as_error(self) -> Error<'a> {
+        Error {
+            ty: self,
+            line: 0,
+        }
+    }
 }
 
 pub use Type::*;

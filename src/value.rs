@@ -99,7 +99,17 @@ impl fmt::Display for Value {
 }
 
 #[derive(Clone)]
-pub struct Handle(Rc<RefCell<Value>>);
+pub struct Handle(pub Rc<RefCell<Value>>);
+
+impl Handle {
+    pub fn new() -> Self {
+        Self(Rc::new(RefCell::new(Value::Nil)))
+    }
+
+    pub fn from_value(value: Value) -> Self {
+        Self(Rc::new(RefCell::new(value)))
+    }
+}
 
 impl Handle {
     pub fn equals(&self, other: &Handle) -> bool {
@@ -115,6 +125,14 @@ impl Handle {
             Value::Table(_) => true,
             _ => false,
         }
+    }
+
+    pub fn value(&self) -> Value {
+        self.0.borrow().clone()
+    }
+
+    pub fn set(&self, value: Value) {
+        *self.0.borrow_mut() = value;
     }
 }
 

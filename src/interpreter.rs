@@ -15,6 +15,22 @@ enum Branch {
     Throw(error::Error<'static>),
 }
 
+impl Branch {
+    fn ret(values: Vec<Value>) -> Result<(), Self> {
+        Err(Self::Return(values))
+    }
+
+    fn throw(err: error::Type<'static>) -> Result<(), Self> {
+        Err(Self::Throw(err.as_error()))
+    }
+}
+
+impl From<error::Error<'static>> for Branch {
+    fn from(err: error::Error<'static>) -> Self {
+        Branch::Throw(err)
+    }
+}
+
 enum ScopeType {
     Outer,
     Inner,
@@ -93,21 +109,74 @@ impl Interpreter {
 
     fn execute(&mut self, stmt: &Stmt) -> Result<(), Branch> {
         match stmt {
-            Stmt::Assign(_lhs, _rhs) => todo!(),
-            Stmt::Block(body) => self.execute_block(body, ScopeType::Inner),
-            Stmt::Break => Err(Branch::Break),
+            Stmt::Assign(lhs, rhs) => {
+                for (handle, value) in lhs.iter().zip(rhs.iter()) {
+                    let value = self.evaluate(value);
+                    match self.evaluate(handle) {
+                        Value::Handle(handle) => *handle.0.borrow_mut() = value,
+                        _ => Branch::throw(error::InvalidExpressionInAssignment)?,
+                    }
+                }
+            },
+
+            Stmt::Block(body) => self.execute_block(body, ScopeType::Inner)?,
+
+            Stmt::Break => Err(Branch::Break)?,
+
             Stmt::Call(_fexpr, _args) => todo!(),
-            Stmt::For(_index, _start, _end, _step, _body) => todo!(),
+
+            Stmt::For(index, start, end, step, body) => {
+                let end = self.evaluate(end);
+                let step = step
+                    .as_ref()
+                    .map(|expr| self.evaluate(&expr))
+                    .unwrap_or(Value::Number(1.0));
+                let index_handle = Handle::from_value(self.evaluate(start));
+                self.scope.insert(index.to_string(), index_handle.clone());
+                let mut body = body.into_iter();
+
+                while index_handle.value() < end {
+                    if let Some(stmt) = body.next() {
+                        match self.execute(stmt) {
+                            Err(Branch::Break) => break,
+                            br => br?,
+                        }
+                    } else {
+                        break;
+                    }
+
+                    index_handle.set( 
+                        Value::Number(index_handle.value().as_number() + step.as_number()));
+                }
+
+                self.scope.remove(&index.to_string());
+            },
+
             Stmt::ForIn(_names, _exprs, _body) => todo!(),
             Stmt::Function(_ftype, _fname, _params, _farity, _body) => todo!(),
-            Stmt::If(_cond, _then_body, _else_body) => todo!(),
-            Stmt::LocalAssign(_lhs, _rhs) => todo!(),
+
+            Stmt::If(cond, then_body, else_body) => {
+                let cond = self.evaluate(cond);
+                if cond.as_bool() {
+                    self.execute_block(then_body, ScopeType::Inner)?;
+                } else {
+                    self.execute_block(else_body, ScopeType::Inner)?;
+                }
+            }
+
+            Stmt::LocalAssign(lhs, rhs) => {
+                let handles = lhs.iter().map(|name| {
+                    let name = name.to_string();
+                });
+            }
+
             Stmt::LocalFunction(_name, _params, _farity, _body) => todo!(),
             Stmt::Return(exprs) =>
-                Err(Branch::Return(exprs.iter().map(|expr| self.evaluate(expr)).collect())),
+                Branch::ret(exprs.iter().map(|expr| self.evaluate(expr)).collect())?,
             Stmt::Until(_cond, _body) => todo!(),
             Stmt::While(_cond, _body) => todo!(),
         }
+        Ok(())
     }
 
     fn execute_block(&mut self, stmts: &Vec<Stmt>, scope_type: ScopeType) -> Result<(), Branch> {
@@ -127,7 +196,15 @@ fn parse_string(s: &str) -> String {
     s.chars().skip(1).take_while(|&c| c != opener).collect()
 }
 
-pub fn interpret(expr: Expr) -> error::Result<'static, Value> {
+pub fn interpret(ast: Vec<Stmt>) -> error::Result<'static, Value> {
     let mut interpreter = Interpreter::new();
-    Ok(interpreter.evaluate(&expr))
+    for stmt in &ast {
+        match interpreter.execute(stmt) {
+            Ok(()) => (),
+            Err(Branch::Return(values)) => return Ok(values[0].clone()),
+            Err(Branch::Throw(err)) => return Err(err),
+            Err(Branch::Break) => panic!("top-level break statment"),
+        }
+    }
+    Ok(Value::Nil)
 }
