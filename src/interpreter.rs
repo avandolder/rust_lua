@@ -4,7 +4,7 @@ use crate::ast::{BinaryOp, Expr, Stmt, UnaryOp};
 use crate::error;
 use crate::value::{Function, Handle, Value};
 
-struct Interpreter {
+pub struct Interpreter {
     globals: HashMap<String, Handle>,
     scope: HashMap<String, Handle>,
 
@@ -14,15 +14,16 @@ struct Interpreter {
     arguments: Option<Vec<Value>>,
 }
 
-enum Branch {
-    Return(Vec<Value>),
+#[derive(Clone, Debug)]
+pub enum Branch {
+    Return(Value),
     Break,
     Throw(error::Error<'static>),
 }
 
 impl Branch {
     fn ret(values: Vec<Value>) -> Result<(), Self> {
-        Err(Self::Return(values))
+        Err(Self::Return(Value::List(values)))
     }
 
     fn throw(err: error::Type<'static>) -> Result<(), Self> {
@@ -36,13 +37,14 @@ impl From<error::Error<'static>> for Branch {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 enum ScopeType {
     Outer,
     Inner,
 }
 
 impl Interpreter {
-    fn new(args: Vec<Value>) -> Self {
+    pub fn new(args: Vec<Value>) -> Self {
         Interpreter {
             arguments: Some(args),
             globals: HashMap::new(),
@@ -118,8 +120,9 @@ impl Interpreter {
                 Value::Nil
             }
 
+            Expr::Call(fexpr, args) => self.call_function(fexpr, args).unwrap(),
+
             Expr::Index(_table_path, _index) => todo!(),
-            Expr::Call(_function_path, _args) => todo!(),
             Expr::Member(_table_path, _name) => todo!(),
             Expr::Method(_table_path, _name) => todo!(),
         }
@@ -142,7 +145,7 @@ impl Interpreter {
         }
     }
 
-    fn execute(&mut self, stmt: &Stmt) -> Result<(), Branch> {
+    pub fn execute(&mut self, stmt: &Stmt) -> Result<(), Branch> {
         match stmt {
             Stmt::Assign(lhs, rhs) => {
                 for (handle, value) in lhs.iter().zip(rhs.iter()) {
@@ -157,44 +160,7 @@ impl Interpreter {
             Stmt::Break => Err(Branch::Break)?,
 
             Stmt::Call(fexpr, args) => {
-                let fvalue = self.evaluate(fexpr);
-                let func = if let Value::Handle(handle) = fvalue {
-                    match handle.value() {
-                        Value::Function(func) => func,
-                        _ => panic!(),
-                    }
-                } else if let Value::Function(func) = fvalue {
-                    func
-                } else {
-                    // TODO: add support for tables with callable metamethods.
-                    panic!()
-                };
-
-                let prev_scope = self.scope.clone();
-
-                let mut args = args.iter().map(|arg| self.evaluate(arg)).collect::<Vec<_>>().into_iter();
-                let mut params = func.params.iter();
-                while let (Some(param), Some(arg)) = (params.next(), args.next()) {
-                    self.scope.insert(param.to_string(), Handle::from_value(arg));
-                }
-                while let Some(param) = params.next() {
-                    self.scope.insert(param.to_string(), Handle::from_value(Value::Nil));
-                }
-
-                let prev_arguments = self.arguments.take();
-                let arguments = args.collect::<Vec<_>>();
-                if !arguments.is_empty() {
-                    self.arguments = Some(arguments);
-                }
-
-                let _result = match func.body.iter().try_for_each(|stmt| self.execute(stmt)) {
-                    Err(Branch::Return(result)) => result,
-                    Ok(()) => vec![],
-                    err => return err,
-                };
-
-                self.arguments = prev_arguments;
-                self.scope = prev_scope;
+                self.call_function(fexpr, args)?;
             }
 
             Stmt::For(index_name, start, end, step, body) => {
@@ -283,11 +249,54 @@ impl Interpreter {
         self.scope = prev_scope;        
         branch
     }
+
+    fn call_function(&mut self, fexpr: &Expr, args: &Vec<Expr>) -> Result<Value, Branch> {
+        let fvalue = self.evaluate(fexpr);
+        let func = if let Value::Handle(handle) = fvalue {
+            match handle.value() {
+                Value::Function(func) => func,
+                _ => panic!(),
+            }
+        } else if let Value::Function(func) = fvalue {
+            func
+        } else {
+            // TODO: add support for tables with callable metamethods.
+            panic!()
+        };
+
+        let prev_scope = self.scope.clone();
+
+        let mut args = args.iter().map(|arg| self.evaluate(arg)).collect::<Vec<_>>().into_iter();
+        let mut params = func.params.iter();
+        while let (Some(param), Some(arg)) = (params.next(), args.next()) {
+            self.scope.insert(param.to_string(), Handle::from_value(arg));
+        }
+        while let Some(param) = params.next() {
+            self.scope.insert(param.to_string(), Handle::from_value(Value::Nil));
+        }
+
+        let prev_arguments = self.arguments.take();
+        let arguments = args.collect::<Vec<_>>();
+        if !arguments.is_empty() {
+            self.arguments = Some(arguments);
+        }
+
+        let result = match func.body.iter().try_for_each(|stmt| self.execute(stmt)) {
+            Err(Branch::Return(result)) => result,
+            Ok(()) => Value::Nil,
+            Err(Branch::Break) => panic!("can't break from top-level code"),
+            Err(err) => return Err(err),
+        };
+
+        self.arguments = prev_arguments;
+        self.scope = prev_scope;
+        
+        Ok(result)
+    }
 }
 
 fn parse_string(s: &str) -> String {
     let opener = s.chars().next().unwrap();
-
     s.chars().skip(1).take_while(|&c| c != opener).collect()
 }
 
@@ -296,7 +305,7 @@ pub fn interpret(ast: Vec<Stmt>, args: Vec<Value>) -> error::Result<'static, Val
     for stmt in &ast {
         match interpreter.execute(stmt) {
             Ok(()) => (),
-            Err(Branch::Return(values)) => return Ok(Value::List(values)),
+            Err(Branch::Return(value)) => return Ok(value),
             Err(Branch::Throw(err)) => return Err(err),
             Err(Branch::Break) => panic!("top-level break statment"),
         }

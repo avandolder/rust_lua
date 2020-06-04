@@ -1,48 +1,37 @@
-use rust_lua::{interpreter, lexer, parser};
+use std::io::{self, Write};
 
-fn main() {
-    /*let src = r#"local x = {}
-local y = "hello world \nbye"
-local z = -1.2e-10
-a = {b=1, ['c']="hahaha", .3}
-b = 'a' .. "b"
-x.p = 1 + 2 - 3 * 7 / 2 ^ 10 % 2
-function x:q(a, ...) return 10 end
-while true do break end
-repeat print(y); break until false
-for k,v in pairs(x) do print(k) end
-if z ~= nil then
-    print(b)
-elseif z >= 1 and z <= 2 then
-    print("inbetween")
-elseif z == 0 or z > 9.1e10 or z < -9.1e10 then
-    print ("huh")
-else
-    print("well")
-end
--- comment
-print(#x)"#*/
-    let src =
-r#"a = 1/3
-local b = '0.1'
-do
-    local b = 2
-end
-function f(arg)
-    b = arg + 1
-end
-f(2)
-local d = 0
-for i = 1, 10, '2' do
-    d = d + i
-end
-return a - b, c, d"#
-        .chars()
-        .collect::<Vec<_>>();
+use rust_lua::{
+    interpreter::{Branch, Interpreter},
+    lexer,
+    parser,
+    value::Value,
+};
 
-    let tokens = lexer::tokenize(&src);
-    let ast = parser::parse(tokens);
-    print!("{}", ast.iter().map(|stmt| stmt.format()).collect::<Vec<_>>().join(""));
-    let value = interpreter::interpret(ast, vec![]).unwrap();
-    println!("==> {}", value);
+fn read_line() -> io::Result<String> {
+    let mut line = String::new();
+    io::stdin().read_line(&mut line)?;
+    Ok(line)
+}
+
+fn main() -> io::Result<()> {
+    println!("rust_lua");
+
+    let args = std::env::args().map(|arg| Value::String(arg)).collect();
+    let mut interpreter = Interpreter::new(args);
+    loop {
+        print!("> ");
+        io::stdout().flush()?;
+
+        let src = read_line()?.chars().collect::<Vec<_>>();
+        let tokens = lexer::tokenize(&src);
+        let ast = parser::parse(tokens);
+        for stmt in &ast {
+            match interpreter.execute(stmt) {
+                Ok(()) => (),
+                Err(Branch::Return(value)) => println!("==> {}", value),
+                Err(Branch::Throw(err)) => println!("error: {:?}", err),
+                Err(Branch::Break) => println!("error: top-level break statement"),
+            }
+        }
+    }
 }
