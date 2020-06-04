@@ -7,7 +7,7 @@ use im::HashMap;
 
 use crate::ast::{FunctionArity, FunctionType, Name, Stmt};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub params: Vec<Name>,
     pub arity: FunctionArity,
@@ -36,10 +36,10 @@ impl Function {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Table(Vec<(Handle, Handle)>);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Value {
     Bool(bool),
     Function(Function),
@@ -133,7 +133,7 @@ impl fmt::Display for Value {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Handle(pub Rc<RefCell<Value>>);
 
 impl Handle {
