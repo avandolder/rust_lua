@@ -5,6 +5,7 @@ use itertools::Itertools;
 
 use crate::token::{self, Token};
 
+#[derive(Clone)]
 pub struct Name(String);
 
 impl Name {
@@ -31,6 +32,7 @@ impl<'a> TryFrom<Token<'a>> for Name {
     }
 }
 
+#[derive(Clone)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -100,6 +102,7 @@ impl fmt::Display for BinaryOp {
     }
 }
 
+#[derive(Clone)]
 pub enum UnaryOp {
     Not,
     Neg,
@@ -133,6 +136,7 @@ impl fmt::Display for UnaryOp {
     }
 }
 
+#[derive(Clone)]
 pub enum Field {
     Pair(Expr, Expr),
     Single(Expr),
@@ -151,6 +155,7 @@ impl fmt::Display for Field {
     }
 }
 
+#[derive(Clone)]
 pub enum Expr {
     BinaryOp(BinaryOp, Box<Expr>, Box<Expr>),
     UnaryOp(UnaryOp, Box<Expr>),
@@ -241,6 +246,7 @@ pub enum FunctionType {
     Static,
 }
 
+#[derive(Clone)]
 pub enum Stmt {
     Assign(Vec<Expr>, Vec<Expr>),
     Block(Vec<Stmt>),
