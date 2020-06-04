@@ -22,15 +22,23 @@ else
 end
 -- comment
 print(#x)"#*/
-    let src = r#"a = 1/3
+    let src =
+r#"a = 1/3
 local b = '0.1'
-return a - b, c"#
+do
+    local b = 2
+end
+local d = 0
+for i = 1, 10, '2' do
+    d = d + i
+end
+return a - b, c, d"#
         .chars()
         .collect::<Vec<_>>();
 
     let tokens = lexer::tokenize(&src);
     let ast = parser::parse(tokens);
-    print!("{}", ast.iter().map(|stmt| stmt.format()).collect::<Vec<_>>().join("\n"));
+    print!("{}", ast.iter().map(|stmt| stmt.format()).collect::<Vec<_>>().join(""));
     let value = interpreter::interpret(ast, vec![]).unwrap();
     println!("==> {}", value);
 }

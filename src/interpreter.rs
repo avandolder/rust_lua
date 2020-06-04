@@ -152,31 +152,27 @@ impl Interpreter {
 
             Stmt::Call(_fexpr, _args) => todo!(),
 
-            Stmt::For(index, start, end, step, body) => {
-                let end = self.evaluate(end);
+            Stmt::For(index_name, start, end, step, body) => {
+                let prev_scope = self.scope.clone();
+
+                let end = self.evaluate(end).as_number();
                 let step = step
                     .as_ref()
-                    .map(|expr| self.evaluate(&expr))
-                    .unwrap_or(Value::Number(1.0));
-                let index_handle = Handle::from_value(self.evaluate(start));
-                self.scope.insert(index.to_string(), index_handle.clone());
-                let mut body = body.into_iter();
+                    .map(|expr| self.evaluate(&expr).as_number())
+                    .unwrap_or(1.0);
+                let index = Handle::from_value(self.evaluate(start));
+                self.scope.insert(index_name.to_string(), index.clone());
 
-                while index_handle.value() < end {
-                    if let Some(stmt) = body.next() {
-                        match self.execute(stmt) {
-                            Err(Branch::Break) => break,
-                            br => br?,
-                        }
-                    } else {
-                        break;
+                while index.value().as_number() <= end {
+                    match body.iter().try_for_each(|stmt| self.execute(stmt)) {
+                        Err(Branch::Break) => break,
+                        br => br?,
                     }
 
-                    index_handle.set( 
-                        Value::Number(index_handle.value().as_number() + step.as_number()));
+                    index.set(Value::Number(index.value().as_number() + step));
                 }
 
-                self.scope.remove(&index.to_string());
+                self.scope = prev_scope;
             },
 
             Stmt::ForIn(_names, _exprs, _body) => todo!(),
@@ -203,8 +199,22 @@ impl Interpreter {
             Stmt::LocalFunction(_name, _params, _farity, _body) => todo!(),
             Stmt::Return(exprs) =>
                 Branch::ret(exprs.iter().map(|expr| self.evaluate(expr)).collect())?,
-            Stmt::Until(_cond, _body) => todo!(),
-            Stmt::While(_cond, _body) => todo!(),
+
+            Stmt::Until(cond, body) => {
+                // Local variables within the repeat..until block can appear in the
+                // condition, so we can't use execute_block here.
+                loop {
+                    let prev_scope = self.scope.clone();
+                    body.iter().try_for_each(|stmt| self.execute(stmt))?;
+                    if self.evaluate(cond).as_bool() {
+                        break;
+                    }
+                    self.scope = prev_scope;
+                }
+            }
+            Stmt::While(cond, body) => while self.evaluate(cond).as_bool() {
+                self.execute_block(body, ScopeType::Inner)?;
+            }
         }
         Ok(())
     }
