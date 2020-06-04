@@ -92,8 +92,10 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                     self.expect(token::Assign);
                     let rhs = self.parse_expression_list();
                     Stmt::Assign(lhs, rhs)
+                } else if let Expr::Call(fexpr, args) = expr {
+                    Stmt::Call(*fexpr, args)
                 } else {
-                    todo!()
+                    panic!()
                 }
             }
             _ => panic!(),
@@ -184,9 +186,9 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
 
     fn parse_function(&mut self) -> Stmt {
         self.expect(token::Function);
-        let (ftype, names) = self.parse_funcname();
+        let (ftype, name) = self.parse_funcname();
         let (params, arity, body) = self.parse_funcbody();
-        Stmt::Function(ftype, names, params, arity, body)
+        Stmt::Function(ftype, name, params, arity, body)
     }
 
     fn parse_funcbody(&mut self) -> (Vec<Name>, FunctionArity, Vec<Stmt>) {
@@ -196,20 +198,20 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
         (params, arity, body)
     }
 
-    fn parse_funcname(&mut self) -> (FunctionType, Vec<Name>) {
-        let mut names = vec![self.expect(token::Name).try_into().unwrap()];
+    fn parse_funcname(&mut self) -> (FunctionType, Expr) {
+        let mut name = self.expect(token::Name).try_into().unwrap();
 
         while let Some(token::Period) = self.peek_type() {
             self.consume();
-            names.push(self.expect(token::Name).try_into().unwrap());
+            name = Expr::Member(Box::new(name), self.expect(token::Name).try_into().unwrap());
         }
 
         if let Some(token::Colon) = self.peek_type() {
             self.consume();
-            names.push(self.expect(token::Name).try_into().unwrap());
-            (FunctionType::Method, names)
+            name = Expr::Member(Box::new(name), self.expect(token::Name).try_into().unwrap());
+            (FunctionType::Method, name)
         } else {
-            (FunctionType::Static, names)
+            (FunctionType::Static, name)
         }
     }
 

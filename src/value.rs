@@ -3,8 +3,38 @@ use std::cmp::{Ordering, PartialEq, PartialOrd};
 use std::fmt;
 use std::rc::Rc;
 
+use im::HashMap;
+
+use crate::ast::{FunctionArity, FunctionType, Name, Stmt};
+
 #[derive(Clone)]
-pub struct Function;
+pub struct Function {
+    pub params: Vec<Name>,
+    pub arity: FunctionArity,
+    pub body: Vec<Stmt>,
+    pub scope: HashMap<String, Handle>,
+}
+
+impl Function {
+    pub fn new(
+        ftype: FunctionType,
+        mut params: Vec<Name>,
+        arity: FunctionArity,
+        body: Vec<Stmt>,
+        scope: HashMap<String, Handle>,
+    ) -> Self {
+        if let FunctionType::Method = ftype {
+            params.insert(0, Name("self".to_string()));
+        }
+
+        Function {
+            params,
+            arity,
+            body,
+            scope,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Table(Vec<(Handle, Handle)>);

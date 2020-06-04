@@ -28,6 +28,10 @@ local b = '0.1'
 do
     local b = 2
 end
+function f(arg)
+    b = arg + 1
+end
+f(2)
 local d = 0
 for i = 1, 10, '2' do
     d = d + i

@@ -2,16 +2,16 @@ use im::HashMap;
 
 use crate::ast::{BinaryOp, Expr, Stmt, UnaryOp};
 use crate::error;
-use crate::value::{Handle, Value};
-
-struct Frame {
-    args: Vec<Value>,
-}
+use crate::value::{Function, Handle, Value};
 
 struct Interpreter {
     globals: HashMap<String, Handle>,
     scope: HashMap<String, Handle>,
-    stack_frame: Vec<Frame>,
+
+    // arguments represents what is returned by the ... operator within the current executing
+    // context. I.e., it stores any command line arguments on the program start, or the list
+    // of arguments to the current var-arg function call.
+    arguments: Option<Vec<Value>>,
 }
 
 enum Branch {
@@ -44,9 +44,9 @@ enum ScopeType {
 impl Interpreter {
     fn new(args: Vec<Value>) -> Self {
         Interpreter {
+            arguments: Some(args),
             globals: HashMap::new(),
             scope: HashMap::new(),
-            stack_frame: vec![Frame {args}],
         }
     }
 
@@ -104,14 +104,20 @@ impl Interpreter {
                 }
             }
 
-            Expr::Vararg => Value::List(self.stack_frame.last().unwrap().args.clone()),
+            Expr::Vararg => if let Some(ref args) = self.arguments {
+                Value::List(args.clone())
+            } else {
+                panic!()
+            }
+
             Expr::Name(name) => if let Some(handle) = self.scope.get(name.as_str()) {
-                    handle.value()
-                } else if let Some(handle) = self.globals.get(name.as_str()) {
-                    handle.value()
-                } else {
-                    Value::Nil
-                },
+                handle.value()
+            } else if let Some(handle) = self.globals.get(name.as_str()) {
+                handle.value()
+            } else {
+                Value::Nil
+            }
+
             Expr::Index(_table_path, _index) => todo!(),
             Expr::Call(_function_path, _args) => todo!(),
             Expr::Member(_table_path, _name) => todo!(),
@@ -150,7 +156,46 @@ impl Interpreter {
 
             Stmt::Break => Err(Branch::Break)?,
 
-            Stmt::Call(_fexpr, _args) => todo!(),
+            Stmt::Call(fexpr, args) => {
+                let fvalue = self.evaluate(fexpr);
+                let func = if let Value::Handle(handle) = fvalue {
+                    match handle.value() {
+                        Value::Function(func) => func,
+                        _ => panic!(),
+                    }
+                } else if let Value::Function(func) = fvalue {
+                    func
+                } else {
+                    // TODO: add support for tables with callable metamethods.
+                    panic!()
+                };
+
+                let prev_scope = self.scope.clone();
+
+                let mut args = args.iter().map(|arg| self.evaluate(arg)).collect::<Vec<_>>().into_iter();
+                let mut params = func.params.iter();
+                while let (Some(param), Some(arg)) = (params.next(), args.next()) {
+                    self.scope.insert(param.to_string(), Handle::from_value(arg));
+                }
+                while let Some(param) = params.next() {
+                    self.scope.insert(param.to_string(), Handle::from_value(Value::Nil));
+                }
+
+                let prev_arguments = self.arguments.take();
+                let arguments = args.collect::<Vec<_>>();
+                if !arguments.is_empty() {
+                    self.arguments = Some(arguments);
+                }
+
+                let _result = match func.body.iter().try_for_each(|stmt| self.execute(stmt)) {
+                    Err(Branch::Return(result)) => result,
+                    Ok(()) => vec![],
+                    err => return err,
+                };
+
+                self.arguments = prev_arguments;
+                self.scope = prev_scope;
+            }
 
             Stmt::For(index_name, start, end, step, body) => {
                 let prev_scope = self.scope.clone();
@@ -176,7 +221,17 @@ impl Interpreter {
             },
 
             Stmt::ForIn(_names, _exprs, _body) => todo!(),
-            Stmt::Function(_ftype, _fname, _params, _farity, _body) => todo!(),
+            Stmt::Function(ftype, fname, params, arity, body) => {
+                let handle = self.resolve(fname);
+                let func = Function::new(
+                    *ftype,
+                    params.clone(),
+                    *arity,
+                    body.clone(),
+                    self.scope.clone(),
+                );
+                handle.set(Value::Function(func));
+            }
 
             Stmt::If(cond, then_body, else_body) => {
                 let cond = self.evaluate(cond);

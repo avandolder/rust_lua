@@ -6,7 +6,7 @@ use itertools::Itertools;
 use crate::token::{self, Token};
 
 #[derive(Clone)]
-pub struct Name(String);
+pub struct Name(pub String);
 
 impl Name {
     pub fn as_str<'a>(&'a self) -> &'a str {
@@ -254,7 +254,7 @@ pub enum Stmt {
     Call(Expr, Vec<Expr>),
     For(Name, Expr, Expr, Option<Expr>, Vec<Stmt>),
     ForIn(Vec<Name>, Vec<Expr>, Vec<Stmt>),
-    Function(FunctionType, Vec<Name>, Vec<Name>, FunctionArity, Vec<Stmt>),
+    Function(FunctionType, Expr, Vec<Name>, FunctionArity, Vec<Stmt>),
     If(Expr, Vec<Stmt>, Vec<Stmt>),
     LocalAssign(Vec<Name>, Vec<Expr>),
     LocalFunction(Name, Vec<Name>, FunctionArity, Vec<Stmt>),
@@ -325,7 +325,7 @@ impl Stmt {
                 format!("for {} in {} do\n{}{}end", indexes, exprs, block, indent)
             }
             Function(_ftype, name, params, arity, block) => {
-                let name = join(name, ".");
+                let name = name.to_string();
                 let params = format_parameters(params, *arity);
                 let block = format_block(block, level + 1);
                 format!("function {}({})\n{}{}end", name, params, block, indent)
