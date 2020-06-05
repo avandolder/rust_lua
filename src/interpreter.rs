@@ -283,20 +283,16 @@ impl Interpreter {
 
     fn call_function(&mut self, fexpr: &Expr, args: &Vec<Expr>) -> Result<Value, Branch> {
         let fvalue = self.evaluate(fexpr);
-        let func = if let Value::Handle(handle) = fvalue {
-            match handle.value() {
-                Value::Function(func) => func,
-                _ => panic!(),
-            }
-        } else if let Value::Function(func) = fvalue {
+        let func = if let Value::Function(func) = fvalue {
             func
         } else {
             // TODO: add support for tables with callable metamethods.
             panic!()
         };
+        let func = func.borrow();
 
         let prev_scope = self.scope.clone();
-        self.scope = func.scope;
+        self.scope = func.scope.clone();
 
         let mut args = args.iter().map(|arg| self.evaluate(arg)).collect::<Vec<_>>().into_iter();
         let mut params = func.params.iter();

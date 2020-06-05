@@ -22,17 +22,17 @@ impl Function {
         arity: FunctionArity,
         body: Vec<Stmt>,
         scope: HashMap<String, Handle>,
-    ) -> Self {
+    ) -> Rc<RefCell<Self>> {
         if let FunctionType::Method = ftype {
             params.insert(0, Name("self".to_string()));
         }
 
-        Function {
+        Rc::new(RefCell::new(Function {
             params,
             arity,
             body,
             scope,
-        }
+        }))
     }
 }
 
@@ -83,13 +83,13 @@ impl fmt::Display for Table {
 #[derive(Clone, Debug)]
 pub enum Value {
     Bool(bool),
-    Function(Function),
+    Function(Rc<RefCell<Function>>),
     Nil,
     Number(f64),
     String(String),
     Table(Rc<RefCell<Table>>),
 
-    Handle(Handle),
+    // Not technically a Lua value, used for multi-return values and varargs.
     List(Vec<Value>),
 
     // Unimplemented:
@@ -163,7 +163,6 @@ impl fmt::Display for Value {
             Value::Number(value) => write!(f, "{}", value),
             Value::String(value) => write!(f, "\"{}\"", value),
             Value::Table(table) => write!(f, "{}", table.borrow()),
-            Value::Handle(_handle) => todo!(),
             Value::List(list) => {
                 list.iter().take(1).try_for_each(|value| write!(f, "{}", value))?;
                 list.iter().skip(1).try_for_each(|value| write!(f, ", {}", value))
