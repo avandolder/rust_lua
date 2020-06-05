@@ -44,7 +44,7 @@ impl Table {
         Self(fields)
     }
 
-    pub fn get_value(&self, key: Value) -> Value {
+    pub fn get(&self, key: Value) -> Value {
         self.0
             .iter()
             .find(|(k, _)| *k == key)
@@ -52,7 +52,7 @@ impl Table {
             .unwrap_or(Value::Nil)
     }
 
-    pub fn set_value(&mut self, key: Value, value: Value) {
+    pub fn set(&mut self, key: Value, value: Value) {
         let index = self.0.iter()
             .enumerate()
             .find(|(_, (k, _))| *k == key)

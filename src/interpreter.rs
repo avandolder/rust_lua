@@ -152,8 +152,26 @@ impl Interpreter {
 
             Expr::Call(fexpr, args) => self.call_function(fexpr, args).unwrap(),
 
-            Expr::Index(_table_path, _index) => todo!(),
-            Expr::Member(_table_path, _name) => todo!(),
+            Expr::Index(texpr, key) => {
+                let table = self.evaluate(texpr);
+                let key = self.evaluate(key);
+                if let Value::Table(table) = table {
+                    table.borrow().get(key)
+                } else {
+                    panic!("can't index non-table value: {}", table)
+                }
+            }
+            Expr::Member(texpr, name) => {
+                let table = self.evaluate(texpr);
+                let key = Value::String(name.to_string());
+                if let Value::Table(table) = table {
+                    table.borrow().get(key)
+                } else {
+                    panic!("can't index non-table value: {}", table)
+                }
+            }
+
+            // TODO: change this into MethodCall(texpr, name, params).
             Expr::Method(_table_path, _name) => todo!(),
         }
     }
