@@ -1,6 +1,6 @@
 use im::HashMap;
 
-use crate::ast::{BinaryOp, Expr, Stmt, UnaryOp};
+use crate::ast::{BinaryOp, Expr, FunctionType, Stmt, UnaryOp};
 use crate::error;
 use crate::value::{Function, Handle, Value};
 
@@ -59,7 +59,13 @@ impl Interpreter {
             Expr::Number(value) => Value::Number(*value),
             Expr::String(value) => Value::String(parse_string(&value)),
 
-            Expr::Function => todo!(),
+            Expr::Function(params, arity, body) => Value::Function(Function::new(
+                FunctionType::Static,
+                params.clone(),
+                *arity,
+                body.clone(),
+                self.scope.clone(),
+            )),
             Expr::Table(_table) => todo!(),
 
             Expr::BinaryOp(op, lhs, rhs) => {
@@ -228,6 +234,7 @@ impl Interpreter {
                     let prev_scope = self.scope.clone();
                     body.iter().try_for_each(|stmt| self.execute(stmt))?;
                     if self.evaluate(cond).as_bool() {
+                        self.scope = prev_scope;
                         break;
                     }
                     self.scope = prev_scope;
@@ -265,6 +272,7 @@ impl Interpreter {
         };
 
         let prev_scope = self.scope.clone();
+        self.scope = func.scope;
 
         let mut args = args.iter().map(|arg| self.evaluate(arg)).collect::<Vec<_>>().into_iter();
         let mut params = func.params.iter();

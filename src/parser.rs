@@ -389,8 +389,8 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
             }
             token::Function => {
                 self.consume();
-                self.parse_funcbody();
-                Expr::Function
+                let (params, arity, body) = self.parse_funcbody();
+                Expr::Function(params, arity, body)
             }
             token::LBrace => self.parse_table(),
             // Match prefix operators.

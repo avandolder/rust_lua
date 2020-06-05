@@ -170,7 +170,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     Member(Box<Expr>, Name),
     Method(Box<Expr>, Name),
-    Function,
+    Function(Vec<Name>, FunctionArity, Vec<Stmt>),
 }
 
 impl<'a> TryFrom<Token<'a>> for Expr {
@@ -216,7 +216,23 @@ impl fmt::Display for Expr {
             }
             Expr::Member(e, name) => write!(f, "{}.{}", e, name.0),
             Expr::Method(e, name) => write!(f, "{}:{}", e, name.0),
-            Expr::Function => write!(f, "function"),
+            Expr::Function(params, arity, body) => {
+                write!(f, "function(")?;
+                params.iter().take(1).try_for_each(|param| write!(f, "{}", param))?;
+                params.iter().skip(1).try_for_each(|param| write!(f, ", {}", param))?;
+
+                if let FunctionArity::Variable = arity {
+                    if params.is_empty() {
+                        write!(f, "...")?;
+                    } else {
+                        write!(f, ", ...")?;
+                    }
+                }
+                writeln!(f, ")")?;
+
+                body.iter().try_for_each(|stmt| writeln!(f, "{}", stmt.format()))?;
+                write!(f, "end")
+            }
         }
     }
 }
