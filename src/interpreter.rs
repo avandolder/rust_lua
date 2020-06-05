@@ -74,7 +74,10 @@ impl Interpreter {
                 let single_fields = fields.iter()
                     .filter_map(|field| field.as_single())
                     .enumerate()
-                    .map(|(index, field)| (Value::Number(index as f64 + 1.0), self.evaluate(field)))
+                    .map(|(index, value)| (
+                        Value::Number(index as f64 + 1.0),
+                        Handle::from_value(self.evaluate(value)),
+                    ))
                     .collect();
                 let mut pair_fields = fields.iter()
                     .filter_map(|field| field.as_pair())
@@ -83,7 +86,7 @@ impl Interpreter {
                             Expr::Name(name) => Value::String(name.to_string()),
                             key => self.evaluate(key),
                         }
-                    }, self.evaluate(value)))
+                    }, Handle::from_value(self.evaluate(value))))
                     .collect();
 
                 let mut fields: Vec<_> = single_fields;
@@ -156,7 +159,7 @@ impl Interpreter {
                 let table = self.evaluate(texpr);
                 let key = self.evaluate(key);
                 if let Value::Table(table) = table {
-                    table.borrow().get(key)
+                    table.borrow().get_value(key)
                 } else {
                     panic!("can't index non-table value: {}", table)
                 }
@@ -165,7 +168,7 @@ impl Interpreter {
                 let table = self.evaluate(texpr);
                 let key = Value::String(name.to_string());
                 if let Value::Table(table) = table {
-                    table.borrow().get(key)
+                    table.borrow().get_value(key)
                 } else {
                     panic!("can't index non-table value: {}", table)
                 }
@@ -187,6 +190,24 @@ impl Interpreter {
                     let new_handle = Handle::new();
                     self.globals.insert(name.to_string(), new_handle.clone());
                     new_handle
+                }
+            }
+            Expr::Index(texpr, key) => {
+                let table = self.evaluate(texpr);
+                let key = self.evaluate(key);
+                if let Value::Table(table) = table {
+                    table.borrow_mut().get_handle(key)
+                } else {
+                    panic!("can't index non-table value: {}", table)
+                }
+            }
+            Expr::Member(texpr, name) => {
+                let table = self.evaluate(texpr);
+                let key = Value::String(name.to_string());
+                if let Value::Table(table) = table {
+                    table.borrow_mut().get_handle(key)
+                } else {
+                    panic!("can't index non-table value: {}", table)
                 }
             }
             _ => todo!(),

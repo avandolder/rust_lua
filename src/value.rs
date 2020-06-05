@@ -37,18 +37,30 @@ impl Function {
 }
 
 #[derive(Clone, Debug)]
-pub struct Table(Vec<(Value, Value)>);
+pub struct Table(Vec<(Value, Handle)>);
 
 impl Table {
-    pub fn new(fields: Vec<(Value, Value)>) -> Self {
+    pub fn new(fields: Vec<(Value, Handle)>) -> Self {
         Self(fields)
     }
 
-    pub fn get(&self, key: Value) -> Value {
+    pub fn get_handle(&mut self, key: Value) -> Handle {
         self.0
             .iter()
             .find(|(k, _)| *k == key)
             .map(|(_, v)| v.clone())
+            .unwrap_or_else(|| {
+                let handle = Handle::new();
+                self.0.push((key, handle.clone()));
+                handle
+            })
+    }
+
+    pub fn get_value(&self, key: Value) -> Value {
+        self.0
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| v.value())
             .unwrap_or(Value::Nil)
     }
 
@@ -60,9 +72,9 @@ impl Table {
 
         match (index, value) {
             (None, Value::Nil) => (),
-            (None, value) => self.0.push((key, value)),
+            (None, value) => self.0.push((key, Handle::from_value(value))),
             (Some(index), Value::Nil) => { self.0.remove(index); }
-            (Some(index), value) => self.0[index] = (key, value),
+            (Some(index), value) => self.0[index] = (key, Handle::from_value(value)),
         }
     }
 
@@ -174,7 +186,7 @@ impl fmt::Display for Value {
 }
 
 #[derive(Clone, Debug)]
-pub struct Handle(pub Rc<RefCell<Value>>);
+pub struct Handle(Rc<RefCell<Value>>);
 
 impl Handle {
     pub fn new() -> Self {
