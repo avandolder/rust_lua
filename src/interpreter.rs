@@ -286,7 +286,18 @@ impl Interpreter {
                 // TODO: evaluate any remaining exprs, they could have side-effects.
             }
 
-            Stmt::LocalFunction(_name, _params, _farity, _body) => todo!(),
+            Stmt::LocalFunction(name, params, arity, body) => {
+                let func = Function::new(
+                    FunctionType::Static,
+                    params.clone(),
+                    *arity,
+                    body.clone(),
+                    self.scope.clone(),
+                );
+                let handle = Handle::from_value(Value::Function(func));
+                self.scope.insert(name.to_string(), handle);
+            }
+
             Stmt::Return(exprs) =>
                 Branch::ret(exprs.iter().map(|expr| self.evaluate(expr)).collect())?,
 
