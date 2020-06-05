@@ -28,22 +28,12 @@ impl Branch {
     fn ret(values: Vec<Value>) -> Result<(), Self> {
         Err(Self::Return(Value::List(values)))
     }
-
-    fn throw(err: error::Type<'static>) -> Result<(), Self> {
-        Err(Self::Throw(err.as_error()))
-    }
 }
 
 impl From<error::Error<'static>> for Branch {
     fn from(err: error::Error<'static>) -> Self {
         Branch::Throw(err)
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-enum ScopeType {
-    Outer,
-    Inner,
 }
 
 impl Interpreter {
@@ -230,7 +220,7 @@ impl Interpreter {
                 }
             },
 
-            Stmt::Block(body) => self.execute_block(body, ScopeType::Inner)?,
+            Stmt::Block(body) => self.execute_block(body)?,
 
             Stmt::Break => Err(Branch::Break)?,
 
@@ -277,9 +267,9 @@ impl Interpreter {
             Stmt::If(cond, then_body, else_body) => {
                 let cond = self.evaluate(cond);
                 if cond.as_bool() {
-                    self.execute_block(then_body, ScopeType::Inner)?;
+                    self.execute_block(then_body)?;
                 } else {
-                    self.execute_block(else_body, ScopeType::Inner)?;
+                    self.execute_block(else_body)?;
                 }
             }
 
@@ -327,17 +317,14 @@ impl Interpreter {
                 }
             }
             Stmt::While(cond, body) => while self.evaluate(cond).as_bool() {
-                self.execute_block(body, ScopeType::Inner)?;
+                self.execute_block(body)?;
             }
         }
         Ok(())
     }
 
-    fn execute_block(&mut self, stmts: &Vec<Stmt>, scope_type: ScopeType) -> Result<(), Branch> {
+    fn execute_block(&mut self, stmts: &Vec<Stmt>) -> Result<(), Branch> {
         let prev_scope = self.scope.clone();
-        if let ScopeType::Outer = scope_type {
-            self.scope = HashMap::new();
-        }
         let branch = stmts.iter().try_for_each(|stmt| self.execute(stmt));        
         self.scope = prev_scope;        
         branch
