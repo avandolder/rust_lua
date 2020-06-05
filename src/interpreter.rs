@@ -1,8 +1,11 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use im::HashMap;
 
 use crate::ast::{BinaryOp, Expr, FunctionType, Stmt, UnaryOp};
 use crate::error;
-use crate::value::{Function, Handle, Value};
+use crate::value::{Function, Handle, Table, Value};
 
 pub struct Interpreter {
     globals: HashMap<String, Handle>,
@@ -66,7 +69,28 @@ impl Interpreter {
                 body.clone(),
                 self.scope.clone(),
             )),
-            Expr::Table(_table) => todo!(),
+
+            Expr::Table(fields) => {
+                let single_fields = fields.iter()
+                    .filter_map(|field| field.as_single())
+                    .enumerate()
+                    .map(|(index, field)| (Value::Number(index as f64 + 1.0), self.evaluate(field)))
+                    .collect();
+                let mut pair_fields = fields.iter()
+                    .filter_map(|field| field.as_pair())
+                    .map(|(key, value)| ({
+                        match key {
+                            Expr::Name(name) => Value::String(name.to_string()),
+                            key => self.evaluate(key),
+                        }
+                    }, self.evaluate(value)))
+                    .collect();
+
+                let mut fields: Vec<_> = single_fields;
+                fields.append(&mut pair_fields);
+                fields.dedup_by_key(|(key, _)| key.clone());
+                Value::Table(Rc::new(RefCell::new(Table::new(fields))))
+            }
 
             Expr::BinaryOp(op, lhs, rhs) => {
                 let (lhs, rhs) = (self.evaluate(lhs), self.evaluate(rhs));

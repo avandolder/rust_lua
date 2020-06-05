@@ -142,6 +142,22 @@ pub enum Field {
     Single(Expr),
 }
 
+impl Field {
+    pub fn as_pair(&self) -> Option<(&Expr, &Expr)> {
+        match self {
+            Field::Pair(x, y) => Some((x, y)),
+            Field::Single(_) => None,
+        }
+    }
+
+    pub fn as_single(&self) -> Option<&Expr> {
+        match self {
+            Field::Pair(_, _) => None,
+            Field::Single(x) => Some(x),
+        }
+    }
+}
+
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

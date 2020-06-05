@@ -37,7 +37,48 @@ impl Function {
 }
 
 #[derive(Clone, Debug)]
-pub struct Table(Vec<(Handle, Handle)>);
+pub struct Table(Vec<(Value, Value)>);
+
+impl Table {
+    pub fn new(fields: Vec<(Value, Value)>) -> Self {
+        Self(fields)
+    }
+
+    pub fn get_value(&self, key: Value) -> Value {
+        self.0
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| v.clone())
+            .unwrap_or(Value::Nil)
+    }
+
+    pub fn set_value(&mut self, key: Value, value: Value) {
+        let index = self.0.iter()
+            .enumerate()
+            .find(|(_, (k, _))| *k == key)
+            .map(|(index, _)| index);
+
+        match (index, value) {
+            (None, Value::Nil) => (),
+            (None, value) => self.0.push((key, value)),
+            (Some(index), Value::Nil) => { self.0.remove(index); }
+            (Some(index), value) => self.0[index] = (key, value),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl fmt::Display for Table {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        self.0.iter().take(1).try_for_each(|(key, value)| write!(f, "[{}] = {}", key, value))?;
+        self.0.iter().skip(1).try_for_each(|(key, value)| write!(f, ", [{}] = {}", key, value))?;
+        write!(f, "}}")
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum Value {
@@ -46,7 +87,7 @@ pub enum Value {
     Nil,
     Number(f64),
     String(String),
-    Table(Table),
+    Table(Rc<RefCell<Table>>),
 
     Handle(Handle),
     List(Vec<Value>),
@@ -83,7 +124,7 @@ impl Value {
     pub fn length(&self) -> usize {
         match self {
             Value::String(value) => value.len(),
-            Value::Table(value) => value.0.len(),
+            Value::Table(value) => value.borrow().len(),
             _ => panic!(),
         }
     }
@@ -120,8 +161,8 @@ impl fmt::Display for Value {
             Value::Function(_function) => todo!(),
             Value::Nil => write!(f, "nil"),
             Value::Number(value) => write!(f, "{}", value),
-            Value::String(value) => write!(f, "{}", value),
-            Value::Table(_table) => todo!(),
+            Value::String(value) => write!(f, "\"{}\"", value),
+            Value::Table(table) => write!(f, "{}", table.borrow()),
             Value::Handle(_handle) => todo!(),
             Value::List(list) => {
                 list.iter().take(1).try_for_each(|value| write!(f, "{}", value))?;
