@@ -217,11 +217,17 @@ impl Interpreter {
     pub fn execute(&mut self, stmt: &Stmt) -> Result<(), Branch> {
         match stmt {
             Stmt::Assign(lhs, rhs) => {
-                for (handle, value) in lhs.iter().zip(rhs.iter()) {
-                    let value = self.evaluate(value);
-                    self.resolve(handle).set(value);
+                let (mut vars, mut exprs) = (lhs.iter(), rhs.iter());
+                while let (Some(var), Some(expr)) = (vars.next(), exprs.next()) {
+                    let value = self.evaluate(expr);
+                    self.resolve(var).set(value);
                 }
-                // TODO: evaluate any remaining handles/values, they could have side-effects.
+                for var in vars {
+                    self.resolve(var);
+                }
+                for expr in exprs {
+                    self.evaluate(expr);
+                }
             },
 
             Stmt::Block(body) => self.execute_block(body, ScopeType::Inner)?,
@@ -278,12 +284,18 @@ impl Interpreter {
             }
 
             Stmt::LocalAssign(lhs, rhs) => {
-                for (name, expr) in lhs.iter().zip(rhs.iter()) {
+                let (mut names, mut exprs) = (lhs.iter(), rhs.iter());
+                while let (Some(name), Some(expr)) = (names.next(), exprs.next()) {
                     let value = self.evaluate(expr);
                     let handle = Handle::from_value(value);
                     self.scope.insert(name.to_string(), handle);
                 }
-                // TODO: evaluate any remaining exprs, they could have side-effects.
+                for name in names {
+                    self.scope.insert(name.to_string(), Handle::new());
+                }
+                for expr in exprs {
+                    self.evaluate(expr);
+                }
             }
 
             Stmt::LocalFunction(name, params, arity, body) => {

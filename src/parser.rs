@@ -225,8 +225,12 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
             Stmt::LocalFunction(name, params, arity, body)
         } else {
             let names = self.parse_name_list();
-            self.expect(token::Assign);
-            let exprs = self.parse_expression_list();
+            let exprs = if let Some(token::Assign) = self.peek_type() {
+                self.consume();
+                self.parse_expression_list()
+            } else {
+                vec![]
+            };
             Stmt::LocalAssign(names, exprs)
         }
     }
