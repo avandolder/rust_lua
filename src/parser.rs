@@ -163,9 +163,9 @@ impl<'a, I: Iterator<Item = Result<'a, Token<'a>>>> Parser<'a, I> {
                 Stmt::ForIn(names, exprs, body)
             }
             token::Assign => {
-                let start = self.parse_expression();
+                let start = Box::new(self.parse_expression());
                 self.expect(token::Comma);
-                let end = self.parse_expression();
+                let end = Box::new(self.parse_expression());
 
                 let step = if let Some(token::Comma) = self.peek_type() {
                     self.consume();
@@ -493,7 +493,7 @@ mod tests {
 
         assert_eq!(
             parse_tokens!(Function, LParen, RParen, End, Add, Nil),
-            "(function + nil)"
+            "(function()\nend + nil)"
         );
 
         assert_eq!(

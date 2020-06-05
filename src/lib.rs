@@ -1,5 +1,4 @@
 #![warn(clippy::all)]
-#![warn(clippy::pedantic)]
 
 pub mod ast;
 pub mod error;

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use im::HashMap;
 
-use crate::ast::{BinaryOp, Expr, FunctionType, Stmt, UnaryOp};
+use crate::ast::{BinaryOp, Expr, Field, FunctionType, Stmt, UnaryOp};
 use crate::error;
 use crate::value::{Function, Handle, Table, Value};
 
@@ -62,7 +62,7 @@ impl Interpreter {
 
             Expr::Table(fields) => {
                 let single_fields = fields.iter()
-                    .filter_map(|field| field.as_single())
+                    .filter_map(Field::as_single)
                     .enumerate()
                     .map(|(index, value)| (
                         Value::Number(index as f64 + 1.0),
@@ -70,7 +70,7 @@ impl Interpreter {
                     ))
                     .collect();
                 let mut pair_fields = fields.iter()
-                    .filter_map(|field| field.as_pair())
+                    .filter_map(Field::as_pair)
                     .map(|(key, value)| ({
                         match key {
                             Expr::Name(name) => Value::String(name.to_string()),
@@ -143,22 +143,22 @@ impl Interpreter {
                 Value::Nil
             }
 
-            Expr::Call(fexpr, args) => self.call_function(fexpr, args).unwrap(),
+            Expr::Call(expr, args) => self.call_function(expr, args).unwrap(),
 
-            Expr::Index(texpr, key) => {
-                let table = self.evaluate(texpr);
+            Expr::Index(expr, key) => {
+                let table = self.evaluate(expr);
                 let key = self.evaluate(key);
                 if let Value::Table(table) = table {
-                    table.borrow().get_value(key)
+                    table.borrow().get_value(&key)
                 } else {
                     panic!("can't index non-table value: {}", table)
                 }
             }
-            Expr::Member(texpr, name) => {
-                let table = self.evaluate(texpr);
+            Expr::Member(expr, name) => {
+                let table = self.evaluate(expr);
                 let key = Value::String(name.to_string());
                 if let Value::Table(table) = table {
-                    table.borrow().get_value(key)
+                    table.borrow().get_value(&key)
                 } else {
                     panic!("can't index non-table value: {}", table)
                 }
@@ -182,8 +182,8 @@ impl Interpreter {
                     new_handle
                 }
             }
-            Expr::Index(texpr, key) => {
-                let table = self.evaluate(texpr);
+            Expr::Index(expr, key) => {
+                let table = self.evaluate(expr);
                 let key = self.evaluate(key);
                 if let Value::Table(table) = table {
                     table.borrow_mut().get_handle(key)
@@ -191,8 +191,8 @@ impl Interpreter {
                     panic!("can't index non-table value: {}", table)
                 }
             }
-            Expr::Member(texpr, name) => {
-                let table = self.evaluate(texpr);
+            Expr::Member(expr, name) => {
+                let table = self.evaluate(expr);
                 let key = Value::String(name.to_string());
                 if let Value::Table(table) = table {
                     table.borrow_mut().get_handle(key)
@@ -222,7 +222,7 @@ impl Interpreter {
 
             Stmt::Block(body) => self.execute_block(body)?,
 
-            Stmt::Break => Err(Branch::Break)?,
+            Stmt::Break => return Err(Branch::Break),
 
             Stmt::Call(fexpr, args) => {
                 self.call_function(fexpr, args)?;
@@ -234,8 +234,7 @@ impl Interpreter {
                 let end = self.evaluate(end).as_number();
                 let step = step
                     .as_ref()
-                    .map(|expr| self.evaluate(&expr).as_number())
-                    .unwrap_or(1.0);
+                    .map_or(1.0, |expr| self.evaluate(&expr).as_number());
                 let index = Handle::from_value(self.evaluate(start));
                 self.scope.insert(index_name.to_string(), index.clone());
 
@@ -323,14 +322,14 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute_block(&mut self, stmts: &Vec<Stmt>) -> Result<(), Branch> {
+    fn execute_block(&mut self, stmts: &[Stmt]) -> Result<(), Branch> {
         let prev_scope = self.scope.clone();
         let branch = stmts.iter().try_for_each(|stmt| self.execute(stmt));        
         self.scope = prev_scope;        
         branch
     }
 
-    fn call_function(&mut self, fexpr: &Expr, args: &Vec<Expr>) -> Result<Value, Branch> {
+    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, Branch> {
         let fvalue = self.evaluate(fexpr);
         let func = if let Value::Function(func) = fvalue {
             func
@@ -348,7 +347,7 @@ impl Interpreter {
         while let (Some(param), Some(arg)) = (params.next(), args.next()) {
             self.scope.insert(param.to_string(), Handle::from_value(arg));
         }
-        while let Some(param) = params.next() {
+        for param in params {
             self.scope.insert(param.to_string(), Handle::from_value(Value::Nil));
         }
 
@@ -377,9 +376,9 @@ fn parse_string(s: &str) -> String {
     s.chars().skip(1).take_while(|&c| c != opener).collect()
 }
 
-pub fn interpret(ast: Vec<Stmt>, args: Vec<Value>) -> error::Result<'static, Value> {
+pub fn interpret(ast: &[Stmt], args: Vec<Value>) -> error::Result<'static, Value> {
     let mut interpreter = Interpreter::new(args);
-    for stmt in &ast {
+    for stmt in ast {
         match interpreter.execute(stmt) {
             Ok(()) => (),
             Err(Branch::Return(value)) => return Ok(value),

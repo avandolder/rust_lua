@@ -8,15 +8,6 @@ pub enum Type<'a> {
     InvalidExpressionInAssignment,
 }
 
-impl<'a> Type<'a> {
-    pub fn as_error(self) -> Error<'a> {
-        Error {
-            ty: self,
-            line: 0,
-        }
-    }
-}
-
 pub use Type::*;
 
 #[derive(Clone, Debug)]

@@ -56,12 +56,11 @@ impl Table {
             })
     }
 
-    pub fn get_value(&self, key: Value) -> Value {
+    pub fn get_value(&self, key: &Value) -> Value {
         self.0
             .iter()
-            .find(|(k, _)| *k == key)
-            .map(|(_, v)| v.value())
-            .unwrap_or(Value::Nil)
+            .find(|(k, _)| k == key)
+            .map_or(Value::Nil, |(_, v)| v.value())
     }
 
     pub fn set(&mut self, key: Value, value: Value) {
@@ -80,6 +79,10 @@ impl Table {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -179,13 +182,18 @@ impl fmt::Display for Value {
                 list.iter().take(1).try_for_each(|value| write!(f, "{}", value))?;
                 list.iter().skip(1).try_for_each(|value| write!(f, ", {}", value))
             }
-            Value::Thread => todo!(),
-            Value::Userdata => todo!(),
+            Value::Thread | Value::Userdata => todo!(),
         }
     }
 }
 
-#[derive(Clone, Debug)]
+impl Default for Value {
+    fn default() -> Self {
+        Self::Nil
+    }
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct Handle(Rc<RefCell<Value>>);
 
 impl Handle {

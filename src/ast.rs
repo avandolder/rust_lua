@@ -9,7 +9,7 @@ use crate::token::{self, Token};
 pub struct Name(pub String);
 
 impl Name {
-    pub fn as_str<'a>(&'a self) -> &'a str {
+    pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 }
@@ -284,7 +284,7 @@ pub enum Stmt {
     Block(Vec<Stmt>),
     Break,
     Call(Expr, Vec<Expr>),
-    For(Name, Expr, Expr, Option<Expr>, Vec<Stmt>),
+    For(Name, Box<Expr>, Box<Expr>, Option<Expr>, Vec<Stmt>),
     ForIn(Vec<Name>, Vec<Expr>, Vec<Stmt>),
     Function(FunctionType, Expr, Vec<Name>, FunctionArity, Vec<Stmt>),
     If(Expr, Vec<Stmt>, Vec<Stmt>),

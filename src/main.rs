@@ -16,7 +16,7 @@ fn read_line() -> io::Result<String> {
 fn main() -> io::Result<()> {
     println!("rust_lua");
 
-    let args = std::env::args().skip(1).map(|arg| Value::String(arg)).collect();
+    let args = std::env::args().skip(1).map(Value::String).collect();
     let mut interpreter = Interpreter::new(args);
     loop {
         print!("> ");
