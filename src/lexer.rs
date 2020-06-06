@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::error::{self, Error, Result};
+use crate::error::{self, LuaError, LuaResult};
 use crate::token::{self, Token, KEYWORDS};
 
 struct Lexer<'a> {
@@ -9,7 +9,7 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn next_token(&mut self) -> Result<'a, Token<'a>> {
+    fn next_token(&mut self) -> LuaResult<'a, Token<'a>> {
         // Skip leading comments or whitespace.
         loop {
             match self.src {
@@ -59,7 +59,7 @@ impl<'a> Lexer<'a> {
             [')', ..] => (token::RParen, 1),
 
             [c, ..] => {
-                return Err(Error {
+                return Err(LuaError {
                     line: self.line,
                     ty: error::UnexpectedChar(*c),
                 })
@@ -107,7 +107,7 @@ impl<'a> Lexer<'a> {
         (ty, name.len())
     }
 
-    fn scan_string(&mut self) -> Result<'a, (token::Type, usize)> {
+    fn scan_string(&mut self) -> LuaResult<'a, (token::Type, usize)> {
         let opening_symbol = self.src[0];
         let mut length = 1;
         loop {
@@ -121,14 +121,14 @@ impl<'a> Lexer<'a> {
                         'a' | 'b' | 'n' | 'r' | 't' | 'v' | '\\' | '"' | '\'' => (),
                         '\n' => self.line += 1,
                         d if d.is_ascii_digit() => (),
-                        _ => return Err(Error {
+                        _ => return Err(LuaError {
                             ty: error::InvalidEscapeSequence(&self.src[length..length + 2]),
                             line: self.line,
                         }),
                     }
                     length += 2;
                 }
-                '\n' => return Err(Error {
+                '\n' => return Err(LuaError {
                     ty: error::UnexpectedNewlineInString,
                     line: self.line,
                 }),
@@ -139,7 +139,7 @@ impl<'a> Lexer<'a> {
         Ok((token::Str, length))
     }
 
-    fn scan_number(&self) -> Result<'a, (token::Type, usize)> {
+    fn scan_number(&self) -> LuaResult<'a, (token::Type, usize)> {
         let mut length = self.scan_digits(0);
 
         if self.src[length] == '.' {
@@ -156,14 +156,14 @@ impl<'a> Lexer<'a> {
                     length += 1;
                 }
                 if !self.src[length].is_ascii_digit() {
-                    return Err(Error {
+                    return Err(LuaError {
                         ty: error::MalformedNumber,
                         line: self.line,
                     });
                 }
                 length += self.scan_digits(length);
             }
-            c if c.is_alphanumeric() => return Err(Error {
+            c if c.is_alphanumeric() => return Err(LuaError {
                 ty: error::MalformedNumber,
                 line: self.line,
             }),
@@ -181,7 +181,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
-pub fn tokenize<'a>(src: &'a [char]) -> iter::Peekable<impl Iterator<Item = Result<Token>> + 'a> {
+pub fn tokenize<'a>(src: &'a [char]) -> iter::Peekable<impl Iterator<Item = LuaResult<Token>> + 'a> {
     let mut lexer: Lexer<'a> = Lexer { src, line: 1 };
     iter::from_fn(move || match lexer.next_token() {
         Ok(Token { ty: token::EOF, .. }) => None,

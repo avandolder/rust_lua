@@ -4,7 +4,7 @@ use std::rc::Rc;
 use im::HashMap;
 
 use crate::ast::{BinaryOp, Expr, Field, FunctionType, Stmt, UnaryOp};
-use crate::error;
+use crate::error::{self, LuaError};
 use crate::value::{Function, Handle, Table, Value};
 
 pub struct Interpreter {
@@ -21,7 +21,7 @@ pub struct Interpreter {
 pub enum Branch {
     Return(Value),
     Break,
-    Throw(error::Error<'static>),
+    Throw(LuaError<'static>),
 }
 
 impl Branch {
@@ -30,12 +30,12 @@ impl Branch {
     }
 
     fn throw<T>(ty: error::Type<'static>) -> Result<T, Self> {
-        Err(Self::Throw(error::Error { ty, line: 0 }))
+        Err(Self::Throw(LuaError { ty, line: 0 }))
     }
 }
 
-impl From<error::Error<'static>> for Branch {
-    fn from(err: error::Error<'static>) -> Self {
+impl From<LuaError<'static>> for Branch {
+    fn from(err: LuaError<'static>) -> Self {
         Branch::Throw(err)
     }
 }
@@ -49,7 +49,7 @@ impl Interpreter {
         }
     }
 
-    fn evaluate(&mut self, expr: &Expr) -> Result<Value, error::Error<'static>> {
+    fn evaluate(&mut self, expr: &Expr) -> Result<Value, LuaError<'static>> {
         Ok(match expr {
             Expr::Nil => Value::Nil,
             Expr::Bool(value) => Value::Bool(*value),
@@ -136,7 +136,7 @@ impl Interpreter {
             Expr::Vararg => if let Some(ref args) = self.arguments {
                 Value::List(args.clone())
             } else {
-                return Err(error::Error::new(error::VarargOutsideOfVarargFunction));
+                return Err(LuaError::new(error::VarargOutsideOfVarargFunction));
             }
 
             Expr::Name(name) => if let Some(handle) = self.scope.get(name.as_str()) {
@@ -155,7 +155,7 @@ impl Interpreter {
                 if let Value::Table(table) = table {
                     table.borrow().get_value(&key)
                 } else {
-                    return Err(error::Error::new(error::IndexNonTableValue));
+                    return Err(LuaError::new(error::IndexNonTableValue));
                 }
             }
             Expr::Member(expr, name) => {
@@ -164,7 +164,7 @@ impl Interpreter {
                 if let Value::Table(table) = table {
                     table.borrow().get_value(&key)
                 } else {
-                    return Err(error::Error::new(error::IndexNonTableValue));
+                    return Err(LuaError::new(error::IndexNonTableValue));
                 }
             }
 
@@ -173,7 +173,7 @@ impl Interpreter {
         })
     }
 
-    fn resolve(&mut self, expr: &Expr) -> Result<Handle, error::Error<'static>> {
+    fn resolve(&mut self, expr: &Expr) -> Result<Handle, LuaError<'static>> {
         Ok(match expr {
             Expr::Name(name) => {
                 if let Some(handle) = self.scope.get(name.as_str()) {
@@ -192,7 +192,7 @@ impl Interpreter {
                 if let Value::Table(table) = table {
                     table.borrow_mut().get_handle(key)
                 } else {
-                    return Err(error::Error::new(error::IndexNonTableValue));
+                    return Err(LuaError::new(error::IndexNonTableValue));
                 }
             }
             Expr::Member(expr, name) => {
@@ -201,7 +201,7 @@ impl Interpreter {
                 if let Value::Table(table) = table {
                     table.borrow_mut().get_handle(key)
                 } else {
-                    return Err(error::Error::new(error::IndexNonTableValue));
+                    return Err(LuaError::new(error::IndexNonTableValue));
                 }
             }
             _ => todo!(),
@@ -238,7 +238,7 @@ impl Interpreter {
                 let end = self.evaluate(end)?.as_number();
                 let step = step
                     .as_ref()
-                    .map::<Result<f64, error::Error>, _>(|expr| Ok(self.evaluate(&expr)?.as_number()))
+                    .map::<Result<f64, LuaError>, _>(|expr| Ok(self.evaluate(&expr)?.as_number()))
                     .unwrap_or(Ok(1.0))?;
                 let index = Handle::from_value(self.evaluate(start)?);
                 self.scope.insert(index_name.to_string(), index.clone());
@@ -334,7 +334,7 @@ impl Interpreter {
         branch
     }
 
-    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, error::Error<'static>> {
+    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, LuaError<'static>> {
         let fvalue = self.evaluate(fexpr)?;
         let func = if let Value::Function(func) = fvalue {
             func
@@ -368,7 +368,7 @@ impl Interpreter {
         let result = match func.body.iter().try_for_each(|stmt| self.execute(stmt)) {
             Err(Branch::Return(result)) => result,
             Ok(()) => Value::Nil,
-            Err(Branch::Break) => Err(error::Error::new(error::BreakNotInsideLoop))?,
+            Err(Branch::Break) => Err(LuaError::new(error::BreakNotInsideLoop))?,
             Err(Branch::Throw(err)) => Err(err)?,
         };
 
@@ -384,14 +384,14 @@ fn parse_string(s: &str) -> String {
     s.chars().skip(1).take_while(|&c| c != opener).collect()
 }
 
-pub fn interpret(ast: &[Stmt], args: Vec<Value>) -> error::Result<'static, Value> {
+pub fn interpret(ast: &[Stmt], args: Vec<Value>) -> error::LuaResult<'static, Value> {
     let mut interpreter = Interpreter::new(args);
     for stmt in ast {
         match interpreter.execute(stmt) {
             Ok(()) => (),
             Err(Branch::Return(value)) => return Ok(value),
             Err(Branch::Throw(err)) => return Err(err),
-            Err(Branch::Break) => return Err(error::Error::new(error::BreakNotInsideLoop)),
+            Err(Branch::Break) => return Err(LuaError::new(error::BreakNotInsideLoop)),
         }
     }
     Ok(Value::Nil)
