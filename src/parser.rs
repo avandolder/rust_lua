@@ -14,8 +14,16 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
         self.tokens.peek().and_then(|result| result.clone().ok())
     }
 
+    fn must_peek(&mut self) -> LuaResult<Token<'a>> {
+        self.peek().map_or_else(|| LuaError::new(error::UnexpectedEOF), Ok)
+    }
+
     fn peek_type(&mut self) -> Option<token::Type> {
         self.peek().map(|tok| tok.ty)
+    }
+
+    fn must_peek_type(&mut self) -> LuaResult<token::Type> {
+        self.peek().map_or_else(|| LuaError::new(error::UnexpectedEOF), |tok| Ok(tok.ty))
     }
 
     fn consume(&mut self) -> LuaResult<Token> {
@@ -66,7 +74,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_statement(&mut self) -> LuaResult<Stmt> {
-        match self.peek_type().unwrap() {
+        match self.must_peek_type()? {
             token::Do => {
                 self.consume()?;
                 let stmts = self.parse_block()?;
@@ -95,11 +103,22 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
                     Ok(Stmt::Assign(lhs, rhs))
                 } else if let Expr::Call(fexpr, args) = expr {
                     Ok(Stmt::Call(*fexpr, args))
+                } else if let Some(tok) = self.peek() {
+                    Err(LuaError {
+                        ty: error::InvalidStatement,
+                        line: tok.line,
+                    })
                 } else {
-                    panic!()
+                    LuaError::new(error::InvalidStatement)
                 }
             }
-            _ => panic!(),
+            _ => {
+                let tok = self.consume()?;
+                Err(LuaError {
+                    ty: error::InvalidStatement,
+                    line: tok.line,
+                })
+            }
         }
     }
 
@@ -129,29 +148,32 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_elseif(&mut self) -> LuaResult<Vec<Stmt>> {
-        Ok(match self.consume()?.ty {
-            token::ElseIf => {
+        Ok(match self.consume()? {
+            Token { ty: token::ElseIf, .. } => {
                 let cond = self.parse_expression()?;
                 self.expect(token::Then)?;
                 let body = self.parse_block()?;
                 vec![Stmt::If(cond, body, self.parse_elseif()?)]
             }
-            token::Else => {
+            Token { ty: token::Else, .. } => {
                 let body = self.parse_block()?;
                 self.expect(token::End)?;
                 body
             }
-            token::End => vec![],
-            _ => panic!(),
+            Token { ty: token::End, .. } => vec![],
+            Token { ty, line, .. } => Err(LuaError {
+                ty: error::ExpectedOneOf(vec![token::ElseIf, token::Else, token::End], ty),
+                line,
+            })?,
         })
     }
 
     fn parse_for(&mut self) -> LuaResult<Stmt> {
         self.expect(token::For)?;
-        let name = self.expect(token::Name)?.try_into().unwrap();
+        let name = self.expect(token::Name)?.try_into()?;
 
-        match self.consume()?.ty {
-            token::Comma => {
+        match self.consume()? {
+            Token { ty: token::Comma, .. } => {
                 let mut names = vec![name];
                 names.extend(self.parse_name_list()?);
                 self.expect(token::In)?;
@@ -163,7 +185,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
 
                 Ok(Stmt::ForIn(names, exprs, body))
             }
-            token::Assign => {
+            Token { ty: token::Assign, .. } => {
                 let start = Box::new(self.parse_expression()?);
                 self.expect(token::Comma)?;
                 let end = Box::new(self.parse_expression()?);
@@ -181,7 +203,10 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
 
                 Ok(Stmt::For(name, start, end, step, body))
             }
-            _ => panic!(),
+            Token { ty, line, .. } => Err(LuaError {
+                ty: error::Type::ExpectedOneOf(vec![token::Comma, token::Assign], ty),
+                line,
+            })?,
         }
     }
 
@@ -200,16 +225,16 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_funcname(&mut self) -> LuaResult<(FunctionType, Expr)> {
-        let mut name = self.expect(token::Name)?.try_into().unwrap();
+        let mut name = self.expect(token::Name)?.try_into()?;
 
         while let Some(token::Period) = self.peek_type() {
             self.consume()?;
-            name = Expr::Member(Box::new(name), self.expect(token::Name)?.try_into().unwrap());
+            name = Expr::Member(Box::new(name), self.expect(token::Name)?.try_into()?);
         }
 
         if let Some(token::Colon) = self.peek_type() {
             self.consume()?;
-            name = Expr::Member(Box::new(name), self.expect(token::Name)?.try_into().unwrap());
+            name = Expr::Member(Box::new(name), self.expect(token::Name)?.try_into()?);
             Ok((FunctionType::Method, name))
         } else {
             Ok((FunctionType::Static, name))
@@ -221,7 +246,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
 
         if let Some(token::Function) = self.peek_type() {
             self.consume()?;
-            let name = self.expect(token::Name)?.try_into().unwrap();
+            let name = self.expect(token::Name)?.try_into()?;
             let (params, arity, body) = self.parse_funcbody()?;
             Ok(Stmt::LocalFunction(name, params, arity, body))
         } else {
@@ -240,7 +265,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
         let mut fields = vec![];
 
         self.expect(token::LBrace)?;
-        while self.peek_type().unwrap() != token::RBrace {
+        while self.must_peek_type()? != token::RBrace {
             fields.push(self.parse_field()?);
 
             if let Some(token::Comma) | Some(token::Semicolon) = self.peek_type() {
@@ -255,7 +280,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_field(&mut self) -> LuaResult<Field> {
-        Ok(match self.peek_type().unwrap() {
+        Ok(match self.must_peek_type()? {
             token::LBracket => {
                 self.consume()?;
                 let key = self.parse_expression()?;
@@ -265,7 +290,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
                 Field::Pair(key, value)
             }
             token::Name => {
-                let key = self.consume()?.try_into().unwrap();
+                let key = self.consume()?.try_into()?;
                 self.expect(token::Assign)?;
                 let value = self.parse_expression()?;
                 Field::Pair(key, value)
@@ -275,10 +300,10 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_name_list(&mut self) -> LuaResult<Vec<Name>> {
-        let mut names = vec![self.expect(token::Name)?.try_into().unwrap()];
+        let mut names = vec![self.expect(token::Name)?.try_into()?];
         while let Some(token::Comma) = self.peek_type() {
             self.consume()?;
-            names.push(self.expect(token::Name)?.try_into().unwrap());
+            names.push(self.expect(token::Name)?.try_into()?);
         }
         Ok(names)
     }
@@ -292,7 +317,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
                 self.consume()?;
                 return Ok((params, FunctionArity::Variable));
             } else if let Some(token::Name) = self.peek_type() {
-                params.push(self.consume()?.try_into().unwrap());
+                params.push(self.consume()?.try_into()?);
             }
 
             if let Some(token::Comma) = self.peek_type() {
@@ -308,15 +333,18 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_prefixexp(&mut self) -> LuaResult<Expr> {
-        let e = match self.peek_type().unwrap() {
-            token::Name => self.consume()?.try_into().unwrap(),
+        let e = match self.must_peek_type()? {
+            token::Name => self.consume()?.try_into()?,
             token::LParen => {
                 self.consume()?;
                 let e = self.parse_expression()?;
                 self.expect(token::RParen)?;
                 e
             }
-            _ => panic!(),
+            ty => LuaError::new(error::Type::ExpectedOneOf(
+                vec![token::Name, token::LParen],
+                ty,
+            ))?,
         };
         self.parse_var_or_funccall(e)
     }
@@ -335,12 +363,12 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
             }
             Some(token::Period) => {
                 self.consume()?;
-                let name = self.expect(token::Name)?.try_into().unwrap();
+                let name = self.expect(token::Name)?.try_into()?;
                 Expr::Member(Box::new(e), name)
             }
             Some(token::Colon) => {
                 self.consume()?;
-                let name = self.expect(token::Name)?.try_into().unwrap();
+                let name = self.expect(token::Name)?.try_into()?;
                 let method = Expr::Method(Box::new(e), name);
                 Expr::Call(Box::new(method), self.parse_arguments()?)
             }
@@ -350,8 +378,8 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn parse_arguments(&mut self) -> LuaResult<Vec<Expr>> {
-        Ok(match self.peek_type().unwrap() {
-            token::Str => vec![self.consume()?.try_into().unwrap()],
+        Ok(match self.must_peek_type()? {
+            token::Str => vec![self.consume()?.try_into()?],
             token::LBrace => vec![self.parse_table()?],
             token::LParen => {
                 self.consume()?;
@@ -362,7 +390,10 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
                 self.expect(token::RParen)?;
                 args
             }
-            _ => panic!(),
+            ty => LuaError::new(error::Type::ExpectedOneOf(
+                vec![token::Str, token::LBrace, token::LParen],
+                ty,
+            ))?,
         })
     }
 
@@ -386,11 +417,11 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
         // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html.
 
         // Consume the left-hand side of the expression.
-        let tok = self.peek().unwrap();
+        let tok = self.must_peek()?;
         let mut lhs = match tok.ty {
             token::Nil | token::True | token::False | token::Num | token::Str | token::Vararg => {
                 self.consume()?;
-                tok.try_into().unwrap()
+                tok.try_into()?
             }
             token::Function => {
                 self.consume()?;
@@ -401,7 +432,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
             // Match prefix operators.
             op => match unary_precedence(op) {
                 Some(prec) => {
-                    let op = self.consume()?.ty.try_into().unwrap();
+                    let op = self.consume()?.ty.try_into()?;
                     Expr::UnaryOp(op, Box::new(self.pratt_parse(prec)?))
                 }
                 None => self.parse_prefixexp()?,
@@ -414,7 +445,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
                     break;
                 }
 
-                let op = self.consume()?.ty.try_into().unwrap();
+                let op = self.consume()?.ty.try_into()?;
                 lhs = Expr::BinaryOp(op, Box::new(lhs), Box::new(self.pratt_parse(r_prec)?));
             } else {
                 break;

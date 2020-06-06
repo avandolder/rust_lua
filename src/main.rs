@@ -1,6 +1,5 @@
 use std::fs;
 use std::io::{self, Write};
-use std::panic;
 
 use rust_lua::{
     interpreter::{Branch, Interpreter},
@@ -19,10 +18,10 @@ fn interpret_source(interpreter: &mut Interpreter, src: &str) {
     let src = src.chars().collect::<Vec<_>>();
     let tokens = lexer::tokenize(&src);
 
-    let ast = match panic::catch_unwind(|| parser::parse(tokens)) {
-        Ok(Ok(ast)) => ast,
+    let ast = match parser::parse(tokens) {
+        Ok(ast) => ast,
         err => {
-            println!("error parsing source: {:?}", err);
+            println!("parsing error: {:?}", err);
             return;
         }
     };

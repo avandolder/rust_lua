@@ -14,6 +14,12 @@ pub enum Type {
     ExpectedEOF,
     ExpectingToken(token::Type, Token<'static>),
     UnexpectedEndOfInput(token::Type),
+    InvalidBinaryOp(token::Type),
+    InvalidUnaryOp(token::Type),
+    InvalidName(String),
+    InvalidStatement,
+    TokenIsNotValidExpression(String),
+    ExpectedOneOf(Vec<token::Type>, token::Type),
 }
 
 pub use Type::*;

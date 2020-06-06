@@ -3,6 +3,7 @@ use std::fmt;
 
 use itertools::Itertools;
 
+use crate::error::{self, LuaError};
 use crate::token::{self, Token};
 
 #[derive(Clone, Debug)]
@@ -21,13 +22,16 @@ impl fmt::Display for Name {
 }
 
 impl<'a> TryFrom<Token<'a>> for Name {
-    type Error = String;
+    type Error = LuaError;
 
     fn try_from(tok: Token<'a>) -> Result<Self, Self::Error> {
         if let token::Name = tok.ty {
             Ok(Name(tok.raw.iter().collect::<String>()))
         } else {
-            Err(format!("Token {} cannot be converted into a Name.", tok))
+            Err(LuaError {
+                ty: error::InvalidName(tok.to_string()),
+                line: tok.line,
+            })
         }
     }
 }
@@ -52,7 +56,7 @@ pub enum BinaryOp {
 }
 
 impl TryFrom<token::Type> for BinaryOp {
-    type Error = String;
+    type Error = LuaError;
 
     fn try_from(ty: token::Type) -> Result<Self, Self::Error> {
         Ok(match ty {
@@ -71,7 +75,7 @@ impl TryFrom<token::Type> for BinaryOp {
             token::LTE => BinaryOp::LTE,
             token::GT => BinaryOp::GT,
             token::LT => BinaryOp::LT,
-            t => return Err(format!("Token type {:?} cannot be converted to BinaryOp.", t)),
+            t => LuaError::new(error::InvalidBinaryOp(t))?,
         })
     }
 }
@@ -110,14 +114,14 @@ pub enum UnaryOp {
 }
 
 impl TryFrom<token::Type> for UnaryOp {
-    type Error = String;
+    type Error = LuaError;
 
     fn try_from(ty: token::Type) -> Result<Self, Self::Error> {
         Ok(match ty {
             token::Not => UnaryOp::Not,
             token::Sub => UnaryOp::Neg,
             token::Hash => UnaryOp::Len,
-            t => return Err(format!("Token type {:?} cannot be converted to UnaryOp.", t)),
+            t => LuaError::new(error::InvalidUnaryOp(t))?,
         })
     }
 }
@@ -190,7 +194,7 @@ pub enum Expr {
 }
 
 impl<'a> TryFrom<Token<'a>> for Expr {
-    type Error = String;
+    type Error = LuaError;
 
     fn try_from(tok: Token<'a>) -> Result<Self, Self::Error> {
         Ok(match tok.ty {
@@ -201,7 +205,10 @@ impl<'a> TryFrom<Token<'a>> for Expr {
             token::Str => string(&tok),
             token::Vararg => Expr::Vararg,
             token::Name => name(&tok),
-            _ => return Err(format!("Token {} cannot be converted into Expression.", tok)),
+            _ => Err(LuaError {
+                ty: error::TokenIsNotValidExpression(tok.to_string()),
+                line: tok.line,
+            })?,
         })
     }
 }
