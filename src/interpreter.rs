@@ -147,7 +147,7 @@ impl Interpreter {
                 Value::Nil
             }
 
-            Expr::Call(expr, args) => self.call_function(expr, args).unwrap(),
+            Expr::Call(expr, args) => self.call_function(expr, args)?,
 
             Expr::Index(expr, key) => {
                 let table = self.evaluate(expr)?;
@@ -334,7 +334,7 @@ impl Interpreter {
         branch
     }
 
-    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, Branch> {
+    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, error::Error<'static>> {
         let fvalue = self.evaluate(fexpr)?;
         let func = if let Value::Function(func) = fvalue {
             func
@@ -368,8 +368,8 @@ impl Interpreter {
         let result = match func.body.iter().try_for_each(|stmt| self.execute(stmt)) {
             Err(Branch::Return(result)) => result,
             Ok(()) => Value::Nil,
-            Err(Branch::Break) => Branch::throw(error::BreakNotInsideLoop)?,
-            Err(err) => Err(err)?,
+            Err(Branch::Break) => Err(error::Error::new(error::BreakNotInsideLoop))?,
+            Err(Branch::Throw(err)) => Err(err)?,
         };
 
         self.arguments = prev_arguments;
