@@ -1,3 +1,5 @@
+use crate::token::{self, Token};
+
 #[derive(Clone, Debug)]
 pub enum Type {
     UnexpectedEOF,
@@ -10,6 +12,8 @@ pub enum Type {
     VarargOutsideOfVarargFunction,
     IndexNonTableValue,
     ExpectedEOF,
+    ExpectingToken(token::Type, Token<'static>),
+    UnexpectedEndOfInput(token::Type),
 }
 
 pub use Type::*;
