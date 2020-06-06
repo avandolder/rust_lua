@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::{self, Write};
 
 use rust_lua::{
@@ -14,10 +15,23 @@ fn read_line() -> io::Result<String> {
 }
 
 fn main() -> io::Result<()> {
-    println!("rust_lua");
-
-    let args = std::env::args().skip(1).map(Value::String).collect();
+    let args = std::env::args().skip(2).map(Value::String).collect();
     let mut interpreter = Interpreter::new(args);
+
+    if let Some(path) = std::env::args().nth(1) {
+        let src = fs::read_to_string(path)?.chars().collect::<Vec<_>>();
+        let tokens = lexer::tokenize(&src);
+        let ast = parser::parse(tokens);
+        match ast.iter().try_for_each(|stmt| interpreter.execute(stmt)) {
+            Ok(()) => (),
+            Err(Branch::Return(value)) => println!("==> {}", value),
+            Err(Branch::Throw(err)) => println!("error: {:?}", err),
+            Err(Branch::Break) => println!("error: top-level break"),
+        }
+    } else {
+        println!("rust lua");
+    }
+
     loop {
         print!("> ");
         io::stdout().flush()?;
@@ -30,7 +44,7 @@ fn main() -> io::Result<()> {
                 Ok(()) => (),
                 Err(Branch::Return(value)) => println!("==> {}", value),
                 Err(Branch::Throw(err)) => println!("error: {:?}", err),
-                Err(Branch::Break) => println!("error: top-level break statement"),
+                Err(Branch::Break) => println!("error: top-level break"),
             }
         }
     }
