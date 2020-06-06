@@ -9,7 +9,7 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn next_token(&mut self) -> LuaResult<'a, Token<'a>> {
+    fn next_token(&mut self) -> LuaResult<Token<'a>> {
         // Skip leading comments or whitespace.
         loop {
             match self.src {
@@ -107,7 +107,7 @@ impl<'a> Lexer<'a> {
         (ty, name.len())
     }
 
-    fn scan_string(&mut self) -> LuaResult<'a, (token::Type, usize)> {
+    fn scan_string(&mut self) -> LuaResult<(token::Type, usize)> {
         let opening_symbol = self.src[0];
         let mut length = 1;
         loop {
@@ -122,7 +122,7 @@ impl<'a> Lexer<'a> {
                         '\n' => self.line += 1,
                         d if d.is_ascii_digit() => (),
                         _ => return Err(LuaError {
-                            ty: error::InvalidEscapeSequence(&self.src[length..length + 2]),
+                            ty: error::InvalidEscapeSequence(self.src[length..length + 2].iter().collect()),
                             line: self.line,
                         }),
                     }
@@ -139,7 +139,7 @@ impl<'a> Lexer<'a> {
         Ok((token::Str, length))
     }
 
-    fn scan_number(&self) -> LuaResult<'a, (token::Type, usize)> {
+    fn scan_number(&self) -> LuaResult<(token::Type, usize)> {
         let mut length = self.scan_digits(0);
 
         if self.src[length] == '.' {

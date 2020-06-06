@@ -5,11 +5,11 @@ use crate::ast::{Expr, Field, FunctionArity, FunctionType, Name, Stmt};
 use crate::error::LuaResult;
 use crate::token::{self, Token};
 
-struct Parser<'a, I: Iterator<Item = LuaResult<'a, Token<'a>>>> {
+struct Parser<'a, I: Iterator<Item = LuaResult<Token<'a>>>> {
     tokens: Peekable<I>,
 }
 
-impl<'a, I: Iterator<Item = LuaResult<'a, Token<'a>>>> Parser<'a, I> {
+impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     fn peek(&mut self) -> Option<Token<'a>> {
         self.tokens.peek().and_then(|result| result.clone().ok())
     }
@@ -444,15 +444,17 @@ fn binary_precedence(op: token::Type) -> Option<(i32, i32)> {
     })
 }
 
-pub fn parse<'a>(tokens: Peekable<impl Iterator<Item = LuaResult<'a, Token<'a>>>>) -> Vec<Stmt> {
+pub fn parse<'a>(
+    tokens: Peekable<impl Iterator<Item = LuaResult<Token<'a>>>>
+) -> LuaResult<Vec<Stmt>> {
     let mut parser = Parser { tokens };
     let stmts = parser.parse_block();
     assert!(parser.tokens.next().is_none());
-    stmts
+    Ok(stmts)
 }
 
 pub fn parse_expression<'a>(
-    tokens: Peekable<impl Iterator<Item = LuaResult<'a, Token<'a>>>>
+    tokens: Peekable<impl Iterator<Item = LuaResult<Token<'a>>>>
 ) -> Expr {
     let mut parser = Parser { tokens };
     parser.parse_expression()
@@ -464,7 +466,7 @@ mod tests {
 
     fn create_token_stream(
         tokens: &'static [Token],
-    ) -> Peekable<impl Iterator<Item = LuaResult<'static, Token<'static>>>> {
+    ) -> Peekable<impl Iterator<Item = LuaResult<Token<'static>>>> {
         tokens.iter().map(|tok| Ok(tok.clone())).peekable()
     }
 

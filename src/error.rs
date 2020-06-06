@@ -1,9 +1,9 @@
 #[derive(Clone, Debug)]
-pub enum Type<'a> {
+pub enum Type {
     UnexpectedEOF,
     UnexpectedChar(char),
     MalformedNumber,
-    InvalidEscapeSequence(&'a [char]),
+    InvalidEscapeSequence(String),
     UnexpectedNewlineInString,
     InvalidExpressionInAssignment,
     BreakNotInsideLoop,
@@ -14,13 +14,13 @@ pub enum Type<'a> {
 pub use Type::*;
 
 #[derive(Clone, Debug)]
-pub struct LuaError<'a> {
-    pub ty: Type<'a>,
+pub struct LuaError  {
+    pub ty: Type ,
     pub line: usize,
 }
 
-impl<'a> LuaError<'a> {
-    pub fn new(ty: Type<'a>) -> Self {
+impl LuaError {
+    pub fn new(ty: Type) -> Self {
         Self {
             ty,
             line: 0,
@@ -28,4 +28,4 @@ impl<'a> LuaError<'a> {
     }
 }
 
-pub type LuaResult<'a, T> = std::result::Result<T, LuaError<'a>>;
+pub type LuaResult<T> = std::result::Result<T, LuaError>;

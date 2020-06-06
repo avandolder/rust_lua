@@ -21,7 +21,7 @@ pub struct Interpreter {
 pub enum Branch {
     Return(Value),
     Break,
-    Throw(LuaError<'static>),
+    Throw(LuaError),
 }
 
 impl Branch {
@@ -29,13 +29,13 @@ impl Branch {
         Err(Self::Return(Value::List(values)))
     }
 
-    fn throw<T>(ty: error::Type<'static>) -> Result<T, Self> {
+    fn throw<T>(ty: error::Type) -> Result<T, Self> {
         Err(Self::Throw(LuaError { ty, line: 0 }))
     }
 }
 
-impl From<LuaError<'static>> for Branch {
-    fn from(err: LuaError<'static>) -> Self {
+impl From<LuaError> for Branch {
+    fn from(err: LuaError) -> Self {
         Branch::Throw(err)
     }
 }
@@ -49,7 +49,7 @@ impl Interpreter {
         }
     }
 
-    fn evaluate(&mut self, expr: &Expr) -> Result<Value, LuaError<'static>> {
+    fn evaluate(&mut self, expr: &Expr) -> Result<Value, LuaError> {
         Ok(match expr {
             Expr::Nil => Value::Nil,
             Expr::Bool(value) => Value::Bool(*value),
@@ -173,7 +173,7 @@ impl Interpreter {
         })
     }
 
-    fn resolve(&mut self, expr: &Expr) -> Result<Handle, LuaError<'static>> {
+    fn resolve(&mut self, expr: &Expr) -> Result<Handle, LuaError> {
         Ok(match expr {
             Expr::Name(name) => {
                 if let Some(handle) = self.scope.get(name.as_str()) {
@@ -334,7 +334,7 @@ impl Interpreter {
         branch
     }
 
-    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, LuaError<'static>> {
+    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, LuaError> {
         let fvalue = self.evaluate(fexpr)?;
         let func = if let Value::Function(func) = fvalue {
             func
@@ -384,7 +384,7 @@ fn parse_string(s: &str) -> String {
     s.chars().skip(1).take_while(|&c| c != opener).collect()
 }
 
-pub fn interpret(ast: &[Stmt], args: Vec<Value>) -> error::LuaResult<'static, Value> {
+pub fn interpret(ast: &[Stmt], args: Vec<Value>) -> error::LuaResult<Value> {
     let mut interpreter = Interpreter::new(args);
     for stmt in ast {
         match interpreter.execute(stmt) {
