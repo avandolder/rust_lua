@@ -28,6 +28,10 @@ impl Branch {
     fn ret(values: Vec<Value>) -> Result<(), Self> {
         Err(Self::Return(Value::List(values)))
     }
+
+    fn throw<T>(ty: error::Type<'static>) -> Result<T, Self> {
+        Err(Self::Throw(error::Error { ty, line: 0 }))
+    }
 }
 
 impl From<error::Error<'static>> for Branch {
@@ -45,8 +49,8 @@ impl Interpreter {
         }
     }
 
-    fn evaluate(&mut self, expr: &Expr) -> Value {
-        match expr {
+    fn evaluate(&mut self, expr: &Expr) -> Result<Value, error::Error<'static>> {
+        Ok(match expr {
             Expr::Nil => Value::Nil,
             Expr::Bool(value) => Value::Bool(*value),
             Expr::Number(value) => Value::Number(*value),
@@ -64,20 +68,20 @@ impl Interpreter {
                 let single_fields = fields.iter()
                     .filter_map(Field::as_single)
                     .enumerate()
-                    .map(|(index, value)| (
+                    .map(|(index, value)| Ok((
                         Value::Number(index as f64 + 1.0),
-                        Handle::from_value(self.evaluate(value)),
-                    ))
-                    .collect();
+                        Handle::from_value(self.evaluate(value)?),
+                    )))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let mut pair_fields = fields.iter()
                     .filter_map(Field::as_pair)
-                    .map(|(key, value)| ({
+                    .map(|(key, value)| Ok(({
                         match key {
                             Expr::Name(name) => Value::String(name.to_string()),
-                            key => self.evaluate(key),
+                            key => self.evaluate(key)?,
                         }
-                    }, Handle::from_value(self.evaluate(value))))
-                    .collect();
+                    }, Handle::from_value(self.evaluate(value)?))))
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 let mut fields: Vec<_> = single_fields;
                 fields.append(&mut pair_fields);
@@ -86,7 +90,7 @@ impl Interpreter {
             }
 
             Expr::BinaryOp(op, lhs, rhs) => {
-                let (lhs, rhs) = (self.evaluate(lhs), self.evaluate(rhs));
+                let (lhs, rhs) = (self.evaluate(lhs)?, self.evaluate(rhs)?);
 
                 // If either operand is a table, do a metamethod lookup.
                 if let Value::Table(_lhs) = lhs {
@@ -115,7 +119,7 @@ impl Interpreter {
             }
 
             Expr::UnaryOp(op, expr) => {
-                let value = self.evaluate(expr);
+                let value = self.evaluate(expr)?;
 
                 // Handle potential metamethod lookup.
                 if let Value::Table(_table) = value {
@@ -132,7 +136,7 @@ impl Interpreter {
             Expr::Vararg => if let Some(ref args) = self.arguments {
                 Value::List(args.clone())
             } else {
-                panic!()
+                return Err(error::Error::new(error::VarargOutsideOfVarargFunction));
             }
 
             Expr::Name(name) => if let Some(handle) = self.scope.get(name.as_str()) {
@@ -146,31 +150,31 @@ impl Interpreter {
             Expr::Call(expr, args) => self.call_function(expr, args).unwrap(),
 
             Expr::Index(expr, key) => {
-                let table = self.evaluate(expr);
-                let key = self.evaluate(key);
+                let table = self.evaluate(expr)?;
+                let key = self.evaluate(key)?;
                 if let Value::Table(table) = table {
                     table.borrow().get_value(&key)
                 } else {
-                    panic!("can't index non-table value: {}", table)
+                    return Err(error::Error::new(error::IndexNonTableValue));
                 }
             }
             Expr::Member(expr, name) => {
-                let table = self.evaluate(expr);
+                let table = self.evaluate(expr)?;
                 let key = Value::String(name.to_string());
                 if let Value::Table(table) = table {
                     table.borrow().get_value(&key)
                 } else {
-                    panic!("can't index non-table value: {}", table)
+                    return Err(error::Error::new(error::IndexNonTableValue));
                 }
             }
 
             // TODO: change this into MethodCall(texpr, name, params).
             Expr::Method(_table_path, _name) => todo!(),
-        }
+        })
     }
 
-    fn resolve(&mut self, expr: &Expr) -> Handle {
-        match expr {
+    fn resolve(&mut self, expr: &Expr) -> Result<Handle, error::Error<'static>> {
+        Ok(match expr {
             Expr::Name(name) => {
                 if let Some(handle) = self.scope.get(name.as_str()) {
                     handle.clone()
@@ -183,25 +187,25 @@ impl Interpreter {
                 }
             }
             Expr::Index(expr, key) => {
-                let table = self.evaluate(expr);
-                let key = self.evaluate(key);
+                let table = self.evaluate(expr)?;
+                let key = self.evaluate(key)?;
                 if let Value::Table(table) = table {
                     table.borrow_mut().get_handle(key)
                 } else {
-                    panic!("can't index non-table value: {}", table)
+                    return Err(error::Error::new(error::IndexNonTableValue));
                 }
             }
             Expr::Member(expr, name) => {
-                let table = self.evaluate(expr);
+                let table = self.evaluate(expr)?;
                 let key = Value::String(name.to_string());
                 if let Value::Table(table) = table {
                     table.borrow_mut().get_handle(key)
                 } else {
-                    panic!("can't index non-table value: {}", table)
+                    return Err(error::Error::new(error::IndexNonTableValue));
                 }
             }
             _ => todo!(),
-        }
+        })
     }
 
     pub fn execute(&mut self, stmt: &Stmt) -> Result<(), Branch> {
@@ -209,14 +213,14 @@ impl Interpreter {
             Stmt::Assign(lhs, rhs) => {
                 let (mut vars, mut exprs) = (lhs.iter(), rhs.iter());
                 while let (Some(var), Some(expr)) = (vars.next(), exprs.next()) {
-                    let value = self.evaluate(expr);
-                    self.resolve(var).set(value);
+                    let value = self.evaluate(expr)?;
+                    self.resolve(var)?.set(value);
                 }
                 for var in vars {
-                    self.resolve(var);
+                    self.resolve(var)?;
                 }
                 for expr in exprs {
-                    self.evaluate(expr);
+                    self.evaluate(expr)?;
                 }
             },
 
@@ -231,11 +235,12 @@ impl Interpreter {
             Stmt::For(index_name, start, end, step, body) => {
                 let prev_scope = self.scope.clone();
 
-                let end = self.evaluate(end).as_number();
+                let end = self.evaluate(end)?.as_number();
                 let step = step
                     .as_ref()
-                    .map_or(1.0, |expr| self.evaluate(&expr).as_number());
-                let index = Handle::from_value(self.evaluate(start));
+                    .map::<Result<f64, error::Error>, _>(|expr| Ok(self.evaluate(&expr)?.as_number()))
+                    .unwrap_or(Ok(1.0))?;
+                let index = Handle::from_value(self.evaluate(start)?);
                 self.scope.insert(index_name.to_string(), index.clone());
 
                 while index.value().as_number() <= end {
@@ -252,7 +257,7 @@ impl Interpreter {
 
             Stmt::ForIn(_names, _exprs, _body) => todo!(),
             Stmt::Function(ftype, fname, params, arity, body) => {
-                let handle = self.resolve(fname);
+                let handle = self.resolve(fname)?;
                 let func = Function::new(
                     *ftype,
                     params.clone(),
@@ -264,7 +269,7 @@ impl Interpreter {
             }
 
             Stmt::If(cond, then_body, else_body) => {
-                let cond = self.evaluate(cond);
+                let cond = self.evaluate(cond)?;
                 if cond.as_bool() {
                     self.execute_block(then_body)?;
                 } else {
@@ -275,7 +280,7 @@ impl Interpreter {
             Stmt::LocalAssign(lhs, rhs) => {
                 let (mut names, mut exprs) = (lhs.iter(), rhs.iter());
                 while let (Some(name), Some(expr)) = (names.next(), exprs.next()) {
-                    let value = self.evaluate(expr);
+                    let value = self.evaluate(expr)?;
                     let handle = Handle::from_value(value);
                     self.scope.insert(name.to_string(), handle);
                 }
@@ -283,7 +288,7 @@ impl Interpreter {
                     self.scope.insert(name.to_string(), Handle::new());
                 }
                 for expr in exprs {
-                    self.evaluate(expr);
+                    self.evaluate(expr)?;
                 }
             }
 
@@ -300,7 +305,7 @@ impl Interpreter {
             }
 
             Stmt::Return(exprs) =>
-                Branch::ret(exprs.iter().map(|expr| self.evaluate(expr)).collect())?,
+                Branch::ret(exprs.iter().map(|expr| self.evaluate(expr)).collect::<Result<Vec<_>, _>>()?)?,
 
             Stmt::Until(cond, body) => {
                 // Local variables within the repeat..until block can appear in the
@@ -308,14 +313,14 @@ impl Interpreter {
                 loop {
                     let prev_scope = self.scope.clone();
                     body.iter().try_for_each(|stmt| self.execute(stmt))?;
-                    if self.evaluate(cond).as_bool() {
+                    if self.evaluate(cond)?.as_bool() {
                         self.scope = prev_scope;
                         break;
                     }
                     self.scope = prev_scope;
                 }
             }
-            Stmt::While(cond, body) => while self.evaluate(cond).as_bool() {
+            Stmt::While(cond, body) => while self.evaluate(cond)?.as_bool() {
                 self.execute_block(body)?;
             }
         }
@@ -330,19 +335,22 @@ impl Interpreter {
     }
 
     fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, Branch> {
-        let fvalue = self.evaluate(fexpr);
+        let fvalue = self.evaluate(fexpr)?;
         let func = if let Value::Function(func) = fvalue {
             func
         } else {
-            // TODO: add support for tables with callable metamethods.
-            panic!()
+            todo!("add support for tables with callable metamethods")
         };
         let func = func.borrow();
 
         let prev_scope = self.scope.clone();
         self.scope = func.scope.clone();
 
-        let mut args = args.iter().map(|arg| self.evaluate(arg)).collect::<Vec<_>>().into_iter();
+        let mut args = args
+            .iter()
+            .map(|arg| self.evaluate(arg))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter();
         let mut params = func.params.iter();
         while let (Some(param), Some(arg)) = (params.next(), args.next()) {
             self.scope.insert(param.to_string(), Handle::from_value(arg));
@@ -360,8 +368,8 @@ impl Interpreter {
         let result = match func.body.iter().try_for_each(|stmt| self.execute(stmt)) {
             Err(Branch::Return(result)) => result,
             Ok(()) => Value::Nil,
-            Err(Branch::Break) => panic!("can't break from top-level code"),
-            Err(err) => return Err(err),
+            Err(Branch::Break) => Branch::throw(error::BreakNotInsideLoop)?,
+            Err(err) => Err(err)?,
         };
 
         self.arguments = prev_arguments;
@@ -383,7 +391,7 @@ pub fn interpret(ast: &[Stmt], args: Vec<Value>) -> error::Result<'static, Value
             Ok(()) => (),
             Err(Branch::Return(value)) => return Ok(value),
             Err(Branch::Throw(err)) => return Err(err),
-            Err(Branch::Break) => panic!("top-level break statment"),
+            Err(Branch::Break) => return Err(error::Error::new(error::BreakNotInsideLoop)),
         }
     }
     Ok(Value::Nil)
