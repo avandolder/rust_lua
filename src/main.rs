@@ -17,12 +17,8 @@ fn read_line() -> io::Result<String> {
 
 fn interpret_source(interpreter: &mut Interpreter, src: &str) {
     let src = src.chars().collect::<Vec<_>>();
-
-    let ast = match panic::catch_unwind(|| {
-        let tokens = lexer::tokenize(&src);
-        let ast = parser::parse(tokens);
-        ast
-    }) {
+    let tokens = lexer::tokenize(&src);
+    let ast = match panic::catch_unwind(|| parser::parse(tokens)) {
         Ok(ast) => ast,
         Err(err) => {
             println!("error parsing source: {:?}", err);
