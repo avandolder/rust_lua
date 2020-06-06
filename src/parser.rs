@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::iter::Peekable;
 
 use crate::ast::{Expr, Field, FunctionArity, FunctionType, Name, Stmt};
-use crate::error::LuaResult;
+use crate::error::{self, LuaError, LuaResult};
 use crate::token::{self, Token};
 
 struct Parser<'a, I: Iterator<Item = LuaResult<Token<'a>>>> {
@@ -449,8 +449,7 @@ pub fn parse<'a>(
 ) -> LuaResult<Vec<Stmt>> {
     let mut parser = Parser { tokens };
     let stmts = parser.parse_block();
-    assert!(parser.tokens.next().is_none());
-    Ok(stmts)
+    parser.tokens.next().map_or(Ok(stmts), |_| LuaError::new(error::ExpectedEOF))
 }
 
 pub fn parse_expression<'a>(

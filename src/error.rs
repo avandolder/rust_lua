@@ -9,6 +9,7 @@ pub enum Type {
     BreakNotInsideLoop,
     VarargOutsideOfVarargFunction,
     IndexNonTableValue,
+    ExpectedEOF,
 }
 
 pub use Type::*;
@@ -20,11 +21,11 @@ pub struct LuaError  {
 }
 
 impl LuaError {
-    pub fn new(ty: Type) -> Self {
-        Self {
+    pub fn new<T>(ty: Type) -> LuaResult<T> {
+        Err(Self {
             ty,
             line: 0,
-        }
+        })
     }
 }
 
