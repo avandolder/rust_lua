@@ -152,20 +152,12 @@ impl Interpreter {
             Expr::Index(expr, key) => {
                 let table = self.evaluate(expr)?;
                 let key = self.evaluate(key)?;
-                if let Value::Table(table) = table {
-                    table.borrow().get_value(&key)
-                } else {
-                    return LuaError::new(error::IndexNonTableValue);
-                }
+                table.get_value(&key)?
             }
             Expr::Member(expr, name) => {
                 let table = self.evaluate(expr)?;
                 let key = Value::String(name.to_string());
-                if let Value::Table(table) = table {
-                    table.borrow().get_value(&key)
-                } else {
-                    return LuaError::new(error::IndexNonTableValue);
-                }
+                table.get_value(&key)?
             }
 
             // TODO: change this into MethodCall(texpr, name, params).
@@ -189,22 +181,19 @@ impl Interpreter {
             Expr::Index(expr, key) => {
                 let table = self.evaluate(expr)?;
                 let key = self.evaluate(key)?;
-                if let Value::Table(table) = table {
-                    table.borrow_mut().get_handle(key)
-                } else {
-                    return LuaError::new(error::IndexNonTableValue);
-                }
+                table.get_handle(key)?
             }
             Expr::Member(expr, name) => {
                 let table = self.evaluate(expr)?;
                 let key = Value::String(name.to_string());
-                if let Value::Table(table) = table {
-                    table.borrow_mut().get_handle(key)
-                } else {
-                    return LuaError::new(error::IndexNonTableValue);
-                }
+                table.get_handle(key)?
             }
-            _ => todo!(),
+            Expr::Method(expr, name) => {
+                let table = self.evaluate(expr)?;
+                let key = Value::String(name.to_string());
+                table.get_handle(key)?
+            }
+            _ => LuaError::new(error::UnresolvableExpression)?,
         })
     }
 
@@ -222,7 +211,7 @@ impl Interpreter {
                 for expr in exprs {
                     self.evaluate(expr)?;
                 }
-            },
+            }
 
             Stmt::Block(body) => self.execute_block(body)?,
 
@@ -253,7 +242,7 @@ impl Interpreter {
                 }
 
                 self.scope = prev_scope;
-            },
+            }
 
             Stmt::ForIn(_names, _exprs, _body) => todo!(),
             Stmt::Function(ftype, fname, params, arity, body) => {

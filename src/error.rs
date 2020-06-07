@@ -24,6 +24,7 @@ pub enum Type {
     ValueNotValidNumber,
     ValueNotValidString,
     ValueHasNoLength,
+    UnresolvableExpression,
 }
 
 pub use Type::*;

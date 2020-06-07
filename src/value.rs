@@ -138,6 +138,24 @@ impl Value {
         }
     }
 
+    pub fn get_handle(&self, key: Value) -> LuaResult<Handle> {
+        if let Value::Table(table) = self {
+            // TODO: support for index metamethods.
+            Ok(table.borrow_mut().get_handle(key))
+        } else {
+            LuaError::new(error::IndexNonTableValue)
+        }
+    }
+
+    pub fn get_value(&self, key: &Value) -> LuaResult<Value> {
+        if let Value::Table(table) = self {
+            // TODO: support for index metamethods.
+            Ok(table.borrow_mut().get_value(key))
+        } else {
+            LuaError::new(error::IndexNonTableValue)
+        }
+    }
+
     pub fn length(&self) -> LuaResult<usize> {
         match self {
             Value::String(value) => Ok(value.len()),
