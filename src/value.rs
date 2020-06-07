@@ -6,6 +6,7 @@ use std::rc::Rc;
 use im::HashMap;
 
 use crate::ast::{FunctionArity, FunctionType, Name, Stmt};
+use crate::error::{self, LuaError, LuaResult};
 
 #[derive(Clone, Debug)]
 pub struct Function {
@@ -120,27 +121,29 @@ impl Value {
         }
     }
 
-    pub fn as_number(&self) -> f64 {
+    pub fn as_number(&self) -> LuaResult<f64> {
         match self {
-            Value::Number(value) => *value,
-            Value::String(value) => value.parse::<f64>().unwrap(),
-            _ => panic!(),
+            Value::Number(value) => Ok(*value),
+            Value::String(value) =>
+                value.parse::<f64>().map_err(|_| LuaError { ty: error::ParseNumberError, line: 0 }),
+            _ => LuaError::new(error::ValueNotValidNumber),
         }
     }
 
-    pub fn as_string(&self) -> String {
+    pub fn as_string(&self) -> LuaResult<String> {
         match self {
-            Value::String(value) => value.clone(),
-            Value::Number(value) => value.to_string(),
-            _ => panic!(),
+            Value::String(value) => Ok(value.clone()),
+            Value::Number(value) => Ok(value.to_string()),
+            _ => LuaError::new(error::ValueNotValidString),
         }
     }
 
-    pub fn length(&self) -> usize {
+    pub fn length(&self) -> LuaResult<usize> {
         match self {
-            Value::String(value) => value.len(),
-            Value::Table(value) => value.borrow().len(),
-            _ => panic!(),
+            Value::String(value) => Ok(value.len()),
+            Value::Table(value) => Ok(value.borrow().len()),
+            // TODO: add support for length metamethods.
+            _ => LuaError::new(error::ValueHasNoLength),
         }
     }
 }

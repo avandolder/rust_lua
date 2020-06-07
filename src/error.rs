@@ -20,6 +20,10 @@ pub enum Type {
     InvalidStatement,
     TokenIsNotValidExpression(String),
     ExpectedOneOf(Vec<token::Type>, token::Type),
+    ParseNumberError,
+    ValueNotValidNumber,
+    ValueNotValidString,
+    ValueHasNoLength,
 }
 
 pub use Type::*;

@@ -100,13 +100,13 @@ impl Interpreter {
                 }
 
                 match op {
-                    BinaryOp::Add => Value::Number(lhs.as_number() + rhs.as_number()),
-                    BinaryOp::Sub => Value::Number(lhs.as_number() - rhs.as_number()),
-                    BinaryOp::Mul => Value::Number(lhs.as_number() * rhs.as_number()),
-                    BinaryOp::Div => Value::Number(lhs.as_number() / rhs.as_number()),
-                    BinaryOp::Mod => Value::Number(lhs.as_number() % rhs.as_number()),
-                    BinaryOp::Pow => Value::Number(lhs.as_number().powf(rhs.as_number())),
-                    BinaryOp::Concat => Value::String(lhs.as_string() + &rhs.as_string()),
+                    BinaryOp::Add => Value::Number(lhs.as_number()? + rhs.as_number()?),
+                    BinaryOp::Sub => Value::Number(lhs.as_number()? - rhs.as_number()?),
+                    BinaryOp::Mul => Value::Number(lhs.as_number()? * rhs.as_number()?),
+                    BinaryOp::Div => Value::Number(lhs.as_number()? / rhs.as_number()?),
+                    BinaryOp::Mod => Value::Number(lhs.as_number()? % rhs.as_number()?),
+                    BinaryOp::Pow => Value::Number(lhs.as_number()?.powf(rhs.as_number()?)),
+                    BinaryOp::Concat => Value::String(lhs.as_string()? + &rhs.as_string()?),
                     BinaryOp::And => if lhs.as_bool() { rhs } else { lhs },
                     BinaryOp::Or => if lhs.as_bool() { lhs } else { rhs },
                     BinaryOp::EQ => Value::Bool(lhs == rhs),
@@ -128,8 +128,8 @@ impl Interpreter {
 
                 match op {
                     UnaryOp::Not => Value::Bool(!value.as_bool()),
-                    UnaryOp::Neg => Value::Number(-value.as_number()),
-                    UnaryOp::Len => Value::Number(value.length() as f64),
+                    UnaryOp::Neg => Value::Number(-value.as_number()?),
+                    UnaryOp::Len => Value::Number(value.length()? as f64),
                 }
             }
 
@@ -235,21 +235,21 @@ impl Interpreter {
             Stmt::For(index_name, start, end, step, body) => {
                 let prev_scope = self.scope.clone();
 
-                let end = self.evaluate(end)?.as_number();
+                let end = self.evaluate(end)?.as_number()?;
                 let step = step
                     .as_ref()
-                    .map::<Result<f64, LuaError>, _>(|expr| Ok(self.evaluate(&expr)?.as_number()))
+                    .map::<Result<f64, LuaError>, _>(|expr| Ok(self.evaluate(&expr)?.as_number()?))
                     .unwrap_or(Ok(1.0))?;
                 let index = Handle::from_value(self.evaluate(start)?);
                 self.scope.insert(index_name.to_string(), index.clone());
 
-                while index.value().as_number() <= end {
+                while index.value().as_number()? <= end {
                     match body.iter().try_for_each(|stmt| self.execute(stmt)) {
                         Err(Branch::Break) => break,
                         br => br?,
                     }
 
-                    index.set(Value::Number(index.value().as_number() + step));
+                    index.set(Value::Number(index.value().as_number()? + step));
                 }
 
                 self.scope = prev_scope;
