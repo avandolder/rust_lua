@@ -74,6 +74,7 @@ impl Interpreter {
                     )))
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut pair_fields = fields.iter()
+                    .rev()
                     .filter_map(Field::as_pair)
                     .map(|(key, value)| Ok(({
                         match key {
