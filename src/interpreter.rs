@@ -293,8 +293,9 @@ impl Interpreter {
                 self.scope.insert(name.to_string(), handle);
             }
 
-            Stmt::Return(exprs) =>
-                Branch::ret(exprs.iter().map(|expr| self.evaluate(expr)).collect::<Result<Vec<_>, _>>()?)?,
+            Stmt::Return(exprs) => Branch::ret(
+                exprs.iter().map(|expr| self.evaluate(expr)).collect::<Result<Vec<_>, _>>()?
+            )?,
 
             Stmt::Until(cond, body) => {
                 // Local variables within the repeat..until block can appear in the
