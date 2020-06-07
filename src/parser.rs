@@ -45,29 +45,36 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     fn parse_block(&mut self) -> LuaResult<Vec<Stmt>> {
         let mut stmts = vec![];
         loop {
-            match self.peek_type() {
+            let end = match self.peek_type() {
                 Some(token::Return) => {
                     self.consume()?;
                     let exprs = self.parse_expression_list()?;
                     stmts.push(Stmt::Return(exprs));
-                    break;
+                    true
                 }
                 Some(token::Break) => {
                     self.consume()?;
                     stmts.push(Stmt::Break);
-                    break;
+                    true
                 }
                 Some(token::End)
                 | Some(token::Until)
                 | Some(token::ElseIf)
                 | Some(token::Else)
                 | None =>
-                    break,
-                Some(_) => stmts.push(self.parse_statement()?),
+                    true,
+                Some(_) => {
+                    stmts.push(self.parse_statement()?);
+                    false
+                },
+            };
+
+            while let Some(token::Semicolon) = self.peek_type() {
+                self.consume()?;
             }
 
-            if let Some(token::Semicolon) = self.peek_type() {
-                self.consume()?;
+            if end {
+                break;
             }
         }
         Ok(stmts)
