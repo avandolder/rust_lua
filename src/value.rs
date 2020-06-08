@@ -129,6 +129,7 @@ impl Value {
     pub fn as_bool(&self) -> bool {
         match self {
             Value::Nil | Value::Bool(false) => false,
+            Value::List(list) => list.get(0).map_or(false, |v| v.as_bool()),
             _ => true,
         }
     }
@@ -136,14 +137,21 @@ impl Value {
     pub fn as_number(&self) -> LuaResult<f64> {
         match self {
             Value::Number(value) => Ok(*value),
-            Value::String(value) =>
-                value.parse::<f64>().map_err(|_| LuaError { ty: error::ParseNumberError, line: 0 }),
+            Value::String(value) => value.parse::<f64>().map_err(|_| LuaError {
+                ty: error::ParseNumberError,
+                line: 0,
+            }),
+            Value::List(list) => list.get(0).map_or_else(
+                || LuaError::new(error::ValueNotValidNumber),
+                |v| v.as_number()
+            ),
             _ => LuaError::new(error::ValueNotValidNumber),
         }
     }
 
     pub fn as_string(&self) -> LuaResult<String> {
         match self {
+            Value::Number(value) => Ok(value.to_string()),
             Value::String(value) => Ok(value.clone()),
             Value::List(list) => list.get(0).map_or_else(
                 || LuaError::new(error::ValueNotValidString),

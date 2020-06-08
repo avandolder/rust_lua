@@ -217,7 +217,10 @@ impl Interpreter {
             Stmt::Assign(lhs, rhs) => {
                 let (mut vars, mut exprs) = (lhs.iter(), rhs.iter());
                 while let (Some(var), Some(expr)) = (vars.next(), exprs.next()) {
-                    let value = self.evaluate(expr)?;
+                    let value = match self.evaluate(expr)? {
+                        Value::List(list) => list.into_iter().next().unwrap_or(Value::Nil),
+                        value => value,
+                    };
                     self.resolve(var)?.set(value);
                 }
                 for var in vars {
@@ -284,7 +287,10 @@ impl Interpreter {
             Stmt::LocalAssign(lhs, rhs) => {
                 let (mut names, mut exprs) = (lhs.iter(), rhs.iter());
                 while let (Some(name), Some(expr)) = (names.next(), exprs.next()) {
-                    let value = self.evaluate(expr)?;
+                    let value = match self.evaluate(expr)? {
+                        Value::List(list) => list.into_iter().next().unwrap_or(Value::Nil),
+                        value => value,
+                    };
                     let handle = Handle::from_value(value);
                     self.scope.insert(name.to_string(), handle);
                 }
