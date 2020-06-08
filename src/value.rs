@@ -1,9 +1,11 @@
 use std::cell::RefCell;
 use std::cmp::{Ordering, PartialEq, PartialOrd};
+use std::collections::HashMap;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use im::HashMap;
+use im;
 
 use crate::ast::{FunctionArity, FunctionType, Name, Stmt};
 use crate::error::{self, LuaError, LuaResult};
@@ -13,7 +15,7 @@ pub struct Function {
     pub params: Vec<Name>,
     pub arity: FunctionArity,
     pub body: Vec<Stmt>,
-    pub scope: HashMap<String, Handle>,
+    pub scope: im::HashMap<String, Handle>,
 }
 
 impl Function {
@@ -22,7 +24,7 @@ impl Function {
         mut params: Vec<Name>,
         arity: FunctionArity,
         body: Vec<Stmt>,
-        scope: HashMap<String, Handle>,
+        scope: im::HashMap<String, Handle>,
     ) -> Rc<RefCell<Self>> {
         if let FunctionType::Method = ftype {
             params.insert(0, Name("self".to_string()));
@@ -38,43 +40,26 @@ impl Function {
 }
 
 #[derive(Clone, Debug)]
-pub struct Table(Vec<(Value, Handle)>);
+pub struct Table(HashMap<Value, Handle>);
 
 impl Table {
     pub fn new(fields: Vec<(Value, Handle)>) -> Self {
-        Self(fields)
+        Self(fields.into_iter().collect())
     }
 
     pub fn get_handle(&mut self, key: Value) -> Handle {
-        self.0
-            .iter()
-            .find(|(k, _)| *k == key)
-            .map(|(_, v)| v.clone())
-            .unwrap_or_else(|| {
-                let handle = Handle::new();
-                self.0.push((key, handle.clone()));
-                handle
-            })
+        self.0.entry(key).or_default().clone()
     }
 
     pub fn get_value(&self, key: &Value) -> Value {
-        self.0
-            .iter()
-            .find(|(k, _)| k == key)
-            .map_or(Value::Nil, |(_, v)| v.value())
+        self.0.get(key).map_or(Value::Nil, Handle::value)
     }
 
     pub fn set(&mut self, key: Value, value: Value) {
-        let index = self.0.iter()
-            .enumerate()
-            .find(|(_, (k, _))| *k == key)
-            .map(|(index, _)| index);
-
-        match (index, value) {
+        match (self.0.get(&key), value) {
             (None, Value::Nil) => (),
-            (None, value) => self.0.push((key, Handle::from_value(value))),
-            (Some(index), Value::Nil) => { self.0.remove(index); }
-            (Some(index), value) => self.0[index] = (key, Handle::from_value(value)),
+            (Some(_), Value::Nil) => { self.0.remove(&key); }
+            (_, value) => { self.0.insert(key, Handle::from_value(value)); }
         }
     }
 
@@ -173,12 +158,13 @@ impl PartialEq for Value {
             (Value::Number(lhs), Value::Number(rhs)) => lhs == rhs,
             (Value::String(lhs), Value::String(rhs)) => lhs == rhs,
             (Value::Nil, Value::Nil) => true,
-            (Value::Table(_lhs), Value::Table(_rhs)) => todo!(),
-            (Value::Function(_lhs), Value::Function(_rhs)) => todo!(),
+            (Value::Table(lhs), Value::Table(rhs)) => Rc::ptr_eq(lhs, rhs),
+            (Value::Function(lhs), Value::Function(rhs)) => Rc::ptr_eq(lhs, rhs),
             _ => false,
         }
     }
 }
+impl Eq for Value {}
 
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -211,6 +197,22 @@ impl fmt::Display for Value {
 impl Default for Value {
     fn default() -> Self {
         Self::Nil
+    }
+}
+
+impl Hash for Value {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Value::Bool(value) => value.hash(state),
+            Value::Function(function) => Rc::into_raw(function.clone()).hash(state),
+            Value::Nil => ().hash(state),
+            // This is ... not good. Need to get a real hashing algorithm for f64.
+            Value::Number(value) => value.to_bits().hash(state),
+            Value::String(value) => value.hash(state),
+            Value::Table(table) => Rc::into_raw(table.clone()).hash(state),
+            Value::List(_list) => panic!("lists aren't hashable (this should never happen)"),
+            Value::Thread | Value::Userdata => todo!(),
+        }
     }
 }
 
