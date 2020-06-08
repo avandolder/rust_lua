@@ -1,10 +1,10 @@
-use std::cell::RefCell;
+use std::cell::{RefCell};
 use std::rc::Rc;
 
 use im::HashMap;
 
 use crate::ast::{BinaryOp, Expr, Field, FunctionType, Stmt, UnaryOp};
-use crate::error::{self, LuaError};
+use crate::error::{self, LuaError, LuaResult};
 use crate::value::{Function, Handle, Table, Value};
 
 pub struct Interpreter {
@@ -49,7 +49,7 @@ impl Interpreter {
         }
     }
 
-    fn evaluate(&mut self, expr: &Expr) -> Result<Value, LuaError> {
+    fn evaluate(&mut self, expr: &Expr) -> LuaResult<Value> {
         Ok(match expr {
             Expr::Nil => Value::Nil,
             Expr::Bool(value) => Value::Bool(*value),
@@ -160,13 +160,15 @@ impl Interpreter {
                 let key = Value::String(name.to_string());
                 table.get_value(&key)?
             }
-
-            // TODO: change this into MethodCall(texpr, name, params).
-            Expr::Method(_table_path, _name) => todo!(),
+            Expr::Method(expr, name) => {
+                let table = self.evaluate(expr)?;
+                let key = Value::String(name.to_string());
+                table.get_value(&key)?
+            }
         })
     }
 
-    fn resolve(&mut self, expr: &Expr) -> Result<Handle, LuaError> {
+    fn resolve(&mut self, expr: &Expr) -> LuaResult<Handle> {
         Ok(match expr {
             Expr::Name(name) => {
                 if let Some(handle) = self.scope.get(name.as_str()) {
@@ -325,7 +327,7 @@ impl Interpreter {
         branch
     }
 
-    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> Result<Value, LuaError> {
+    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> LuaResult<Value> {
         let fvalue = self.evaluate(fexpr)?;
         let func = if let Value::Function(func) = fvalue {
             func
@@ -334,14 +336,18 @@ impl Interpreter {
         };
         let func = func.borrow();
 
-        let prev_scope = self.scope.clone();
-        self.scope = func.scope.clone();
-
         let mut args = args
             .iter()
             .map(|arg| self.evaluate(arg))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter();
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Expr::Method(expr, _) = fexpr.clone() {
+            args.insert(0, self.evaluate(&expr)?)
+        }
+        let mut args = args.into_iter();
+
+        let prev_scope = self.scope.clone();
+        self.scope = func.scope.clone();
+
         let mut params = func.params.iter();
         while let (Some(param), Some(arg)) = (params.next(), args.next()) {
             self.scope.insert(param.to_string(), Handle::from_value(arg));
