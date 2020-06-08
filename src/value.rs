@@ -11,31 +11,46 @@ use crate::ast::{FunctionArity, FunctionType, Name, Stmt};
 use crate::error::{self, LuaError, LuaResult};
 
 #[derive(Clone, Debug)]
-pub struct Function {
+pub enum Function {
+    Lua(LuaFunction),
+    Native,
+}
+
+impl Function {
+    pub fn as_lua(&self) -> Option<&LuaFunction> {
+        match self {
+            Function::Lua(f) => Some(f),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LuaFunction {
     pub params: Vec<Name>,
     pub arity: FunctionArity,
     pub body: Vec<Stmt>,
     pub scope: im::HashMap<String, Handle>,
 }
 
-impl Function {
+impl LuaFunction {
     pub fn new(
         ftype: FunctionType,
         mut params: Vec<Name>,
         arity: FunctionArity,
         body: Vec<Stmt>,
         scope: im::HashMap<String, Handle>,
-    ) -> Rc<RefCell<Self>> {
+    ) -> Rc<RefCell<Function>> {
         if let FunctionType::Method = ftype {
             params.insert(0, Name("self".to_string()));
         }
 
-        Rc::new(RefCell::new(Function {
+        Rc::new(RefCell::new(Function::Lua(LuaFunction {
             params,
             arity,
             body,
             scope,
-        }))
+        })))
     }
 }
 
@@ -116,6 +131,16 @@ impl Value {
             Value::String(value) => Ok(value.clone()),
             Value::Number(value) => Ok(value.to_string()),
             _ => LuaError::new(error::ValueNotValidString),
+        }
+    }
+
+    pub fn as_function(&self) -> LuaResult<Rc<RefCell<Function>>> {
+        if let Value::Function(func) = self {
+            Ok(func.clone())
+        } else if let Value::Table(_) = self {
+            todo!("add support for tables with callable metamethods")
+        } else {
+            LuaError::new(error::ValueNotCallable)
         }
     }
 
@@ -200,12 +225,12 @@ impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Value::Bool(value) => value.hash(state),
-            Value::Function(function) => Rc::into_raw(function.clone()).hash(state),
+            Value::Function(ptr) => Rc::into_raw(ptr.clone()).hash(state),
             Value::Nil => ().hash(state),
             // This is ... not good. Need to get a real hashing algorithm for f64.
             Value::Number(value) => value.to_bits().hash(state),
             Value::String(value) => value.hash(state),
-            Value::Table(table) => Rc::into_raw(table.clone()).hash(state),
+            Value::Table(ptr) => Rc::into_raw(ptr.clone()).hash(state),
             Value::List(_list) => panic!("lists aren't hashable (this should never happen)"),
             Value::Thread | Value::Userdata => todo!(),
         }

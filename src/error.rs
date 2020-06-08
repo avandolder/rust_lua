@@ -23,6 +23,7 @@ pub enum Type {
     ParseNumberError,
     ValueNotValidNumber,
     ValueNotValidString,
+    ValueNotCallable,
     ValueHasNoLength,
     UnresolvableExpression,
 }

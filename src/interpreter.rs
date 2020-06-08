@@ -5,7 +5,7 @@ use im::HashMap;
 
 use crate::ast::{BinaryOp, Expr, Field, FunctionType, Stmt, UnaryOp};
 use crate::error::{self, LuaError, LuaResult};
-use crate::value::{Function, Handle, Table, Value};
+use crate::value::{Function, LuaFunction, Handle, Table, Value};
 
 pub struct Interpreter {
     globals: HashMap<String, Handle>,
@@ -56,7 +56,7 @@ impl Interpreter {
             Expr::Number(value) => Value::Number(*value),
             Expr::String(value) => Value::String(parse_string(&value)),
 
-            Expr::Function(params, arity, body) => Value::Function(Function::new(
+            Expr::Function(params, arity, body) => Value::Function(LuaFunction::new(
                 FunctionType::Static,
                 params.clone(),
                 *arity,
@@ -246,7 +246,7 @@ impl Interpreter {
             Stmt::ForIn(_names, _exprs, _body) => todo!(),
             Stmt::Function(ftype, fname, params, arity, body) => {
                 let handle = self.resolve(fname)?;
-                let func = Function::new(
+                let func = LuaFunction::new(
                     *ftype,
                     params.clone(),
                     *arity,
@@ -281,7 +281,7 @@ impl Interpreter {
             }
 
             Stmt::LocalFunction(name, params, arity, body) => {
-                let func = Function::new(
+                let func = LuaFunction::new(
                     FunctionType::Static,
                     params.clone(),
                     *arity,
@@ -324,13 +324,10 @@ impl Interpreter {
     }
 
     fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> LuaResult<Value> {
-        let fvalue = self.evaluate(fexpr)?;
-        let func = if let Value::Function(func) = fvalue {
-            func
-        } else {
-            todo!("add support for tables with callable metamethods")
-        };
+        let func = self.evaluate(fexpr)?;
+        let func = func.as_function()?;
         let func = func.borrow();
+        let func = func.as_lua().unwrap();
 
         let mut args = args
             .iter()
