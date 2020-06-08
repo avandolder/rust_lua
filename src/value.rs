@@ -63,12 +63,8 @@ impl Table {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+    pub fn length(&self) -> usize {
+        (1..).take_while(|&i| self.0.contains_key(&Value::Number(i as f64))).count()
     }
 }
 
@@ -144,7 +140,7 @@ impl Value {
     pub fn length(&self) -> LuaResult<usize> {
         match self {
             Value::String(value) => Ok(value.len()),
-            Value::Table(value) => Ok(value.borrow().len()),
+            Value::Table(value) => Ok(value.borrow().length()),
             // TODO: add support for length metamethods.
             _ => LuaError::new(error::ValueHasNoLength),
         }

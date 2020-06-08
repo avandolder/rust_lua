@@ -122,11 +122,7 @@ impl Interpreter {
             Expr::UnaryOp(op, expr) => {
                 let value = self.evaluate(expr)?;
 
-                // Handle potential metamethod lookup.
-                if let Value::Table(_table) = value {
-                    todo!()
-                }
-
+                // TODO: handle potential metamethod lookup.
                 match op {
                     UnaryOp::Not => Value::Bool(!value.as_bool()),
                     UnaryOp::Neg => Value::Number(-value.as_number()?),
