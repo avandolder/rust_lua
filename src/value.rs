@@ -9,18 +9,34 @@ use im;
 
 use crate::ast::{FunctionArity, FunctionType, Name, Stmt};
 use crate::error::{self, LuaError, LuaResult};
+use crate::interpreter::Interpreter;
 
-#[derive(Clone, Debug)]
+type NativeFunction = fn(&mut Interpreter, Vec<Value>) -> LuaResult<Value>;
+
+#[derive(Clone)]
 pub enum Function {
     Lua(LuaFunction),
-    Native,
+    Native(NativeFunction),
 }
 
 impl Function {
+    pub fn from_native(func: NativeFunction) -> Value {
+        Value::Function(Rc::new(RefCell::new(Function::Native(func))))
+    }
+
     pub fn as_lua(&self) -> Option<&LuaFunction> {
         match self {
             Function::Lua(f) => Some(f),
             _ => None,
+        }
+    }
+}
+
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Function::Lua(func) => func.fmt(f),
+            Function::Native(_) => write!(f, "[Native Function]"),
         }
     }
 }
@@ -129,7 +145,10 @@ impl Value {
     pub fn as_string(&self) -> LuaResult<String> {
         match self {
             Value::String(value) => Ok(value.clone()),
-            Value::Number(value) => Ok(value.to_string()),
+            Value::List(list) => list.get(0).map_or_else(
+                || LuaError::new(error::ValueNotValidString),
+                |v| v.as_string()
+            ),
             _ => LuaError::new(error::ValueNotValidString),
         }
     }

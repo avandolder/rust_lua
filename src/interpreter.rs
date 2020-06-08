@@ -3,10 +3,12 @@ use std::rc::Rc;
 
 use im::HashMap;
 
-use crate::ast::{BinaryOp, Expr, Field, FunctionType, Stmt, UnaryOp};
+use crate::ast::{BinaryOp, Expr, Field, FunctionArity, FunctionType, Stmt, UnaryOp};
 use crate::error::{self, LuaError, LuaResult};
+use crate::native;
 use crate::value::{Function, LuaFunction, Handle, Table, Value};
 
+#[derive(Clone, Debug)]
 pub struct Interpreter {
     globals: HashMap<String, Handle>,
     scope: HashMap<String, Handle>,
@@ -40,11 +42,25 @@ impl From<LuaError> for Branch {
     }
 }
 
+macro_rules! register {
+    ($id:ident) => {
+        (
+            stringify!($id).to_string(),
+            Handle::from_value(Function::from_native(native::$id)),
+        )
+    };
+}
+
 impl Interpreter {
     pub fn new(args: Vec<Value>) -> Self {
+        // Register global functions.
+        let globals: &[(String, Handle)] = &[
+            register!(print),
+        ];
+
         Interpreter {
             arguments: Some(args),
-            globals: HashMap::new(),
+            globals: globals.into(),
             scope: HashMap::new(),
         }
     }
@@ -323,25 +339,31 @@ impl Interpreter {
         branch
     }
 
-    fn call_function(&mut self, fexpr: &Expr, args: &[Expr]) -> LuaResult<Value> {
-        let func = self.evaluate(fexpr)?;
-        let func = func.as_function()?;
-        let func = func.borrow();
-        let func = func.as_lua().unwrap();
-
+    fn call_function(&mut self, func: &Expr, args: &[Expr]) -> LuaResult<Value> {
         let mut args = args
             .iter()
             .map(|arg| self.evaluate(arg))
             .collect::<Result<Vec<_>, _>>()?;
-        if let Expr::Method(expr, _) = fexpr.clone() {
+        if let Expr::Method(expr, _) = func.clone() {
             args.insert(0, self.evaluate(&expr)?)
         }
-        let mut args = args.into_iter();
+
+        let func = self.evaluate(func)?.as_function()?.borrow().clone();
+        let (params, arity, body, scope) = match func {
+            Function::Lua(LuaFunction {
+                params,
+                arity,
+                body,
+                scope,
+            }) => (params, arity, body, scope),
+            Function::Native(func) => return func(self, args),
+        };
 
         let prev_scope = self.scope.clone();
-        self.scope = func.scope.clone();
+        self.scope = scope.clone();
 
-        let mut params = func.params.iter();
+        let mut args = args.into_iter();
+        let mut params = params.iter();
         while let (Some(param), Some(arg)) = (params.next(), args.next()) {
             self.scope.insert(param.to_string(), Handle::from_value(arg));
         }
@@ -351,11 +373,11 @@ impl Interpreter {
 
         let prev_arguments = self.arguments.take();
         let arguments = args.collect::<Vec<_>>();
-        if !arguments.is_empty() {
+        if let FunctionArity::Variable = arity {
             self.arguments = Some(arguments);
         }
 
-        let result = match func.body.iter().try_for_each(|stmt| self.execute(stmt)) {
+        let result = match body.iter().try_for_each(|stmt| self.execute(stmt)) {
             Err(Branch::Return(result)) => result,
             Ok(()) => Value::Nil,
             Err(Branch::Break) => LuaError::new(error::BreakNotInsideLoop)?,
