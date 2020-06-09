@@ -45,7 +45,7 @@ impl From<LuaError> for Branch {
 macro_rules! native {
     ($e:expr, $id:ident) => {
         (
-            stringify!($e).to_string(),
+            $e.to_string(),
             Handle::from_value(Function::from_native(native::$id)),
         )
     };
@@ -56,6 +56,7 @@ impl Interpreter {
         // Register global functions.
         let globals: &[(String, Handle)] = &[
             native!("print", print),
+            native!("type", value_type),
         ];
 
         Interpreter {

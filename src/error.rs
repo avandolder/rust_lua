@@ -26,6 +26,7 @@ pub enum Type {
     ValueNotCallable,
     ValueHasNoLength,
     UnresolvableExpression,
+    InvalidArguments,
 }
 
 pub use Type::*;
