@@ -42,10 +42,10 @@ impl From<LuaError> for Branch {
     }
 }
 
-macro_rules! register {
-    ($id:ident) => {
+macro_rules! native {
+    ($e:expr, $id:ident) => {
         (
-            stringify!($id).to_string(),
+            stringify!($e).to_string(),
             Handle::from_value(Function::from_native(native::$id)),
         )
     };
@@ -55,7 +55,7 @@ impl Interpreter {
     pub fn new(args: Vec<Value>) -> Self {
         // Register global functions.
         let globals: &[(String, Handle)] = &[
-            register!(print),
+            native!("print", print),
         ];
 
         Interpreter {
@@ -315,7 +315,10 @@ impl Interpreter {
             }
 
             Stmt::Return(exprs) => Branch::ret(
-                exprs.iter().map(|expr| self.evaluate(expr)).collect::<Result<Vec<_>, _>>()?
+                exprs
+                    .iter()
+                    .map(|expr| self.evaluate(expr))
+                    .collect::<Result<Vec<_>, _>>()?
             )?,
 
             Stmt::Until(cond, body) => {
@@ -323,7 +326,10 @@ impl Interpreter {
                 // condition, so we can't use execute_block here.
                 loop {
                     let prev_scope = self.scope.clone();
-                    body.iter().try_for_each(|stmt| self.execute(stmt))?;
+                    match body.iter().try_for_each(|stmt| self.execute(stmt)) {
+                        Err(Branch::Break) => return Ok(()),
+                        br => br?,
+                    }
                     if self.evaluate(cond)?.as_bool() {
                         self.scope = prev_scope;
                         break;
@@ -332,7 +338,10 @@ impl Interpreter {
                 }
             }
             Stmt::While(cond, body) => while self.evaluate(cond)?.as_bool() {
-                self.execute_block(body)?;
+                match self.execute_block(body) {
+                    Err(Branch::Break) => return Ok(()),
+                    br => br?,
+                }
             }
         }
         Ok(())
