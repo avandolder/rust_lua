@@ -10,24 +10,29 @@ pub fn print(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
     Ok(Value::Nil)
 }
 
-pub fn value_type(_int: &mut Interpreter, mut args: Vec<Value>) -> LuaResult<Value> {
-    while let Some(Value::List(list)) = args.first() {
-        args = list.clone();
-    }
-    if args.is_empty() {
-        return LuaError::new(error::InvalidArguments);
-    }
+pub fn value_type(_int: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
+    let arg = match args.into_iter().next() {
+        Some(Value::List(list)) => list
+            .into_iter()
+            .next()
+            .map_or_else(|| LuaError::new(error::InvalidArguments), Ok)?,
+        Some(value) => value,
+        None => return LuaError::new(error::InvalidArguments),
+    };
 
-    Ok(Value::String(match &args[0] {
-        Value::Bool(_) => "boolean",
-        Value::Function(_) => "function",
-        Value::Nil => "nil",
-        Value::Number(_) => "number",
-        Value::String(_) => "string",
-        Value::Table(_) => "table",
-        Value::Thread => "thread",
-        Value::Userdata => "userdata",
-        // Handled earlier, should never happen.
-        Value::List(_) => "",
-    }.to_owned()))
+    Ok(Value::String(
+        match arg {
+            Value::Bool(_) => "boolean",
+            Value::Function(_) => "function",
+            Value::Nil => "nil",
+            Value::Number(_) => "number",
+            Value::String(_) => "string",
+            Value::Table(_) => "table",
+            Value::Thread => "thread",
+            Value::Userdata => "userdata",
+            // Handled earlier, should never happen.
+            Value::List(_) => "",
+        }
+        .to_owned(),
+    ))
 }
