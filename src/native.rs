@@ -10,7 +10,7 @@ pub fn print(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
     Ok(Value::Nil)
 }
 
-pub fn value_type(_int: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
+pub fn value_type(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
     let arg = match args.into_iter().next() {
         Some(Value::List(list)) => list
             .into_iter()
@@ -35,4 +35,15 @@ pub fn value_type(_int: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> 
         }
         .to_owned(),
     ))
+}
+
+pub fn assert(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
+    match args.first() {
+        None => LuaError::new(error::InvalidArguments),
+        Some(value) if value.as_bool() => Ok(Value::List(args)),
+        _ => LuaError::new(error::Assertion(args.get(1).map_or_else(
+            || Ok("assertion failed!".to_owned()),
+            |msg| msg.as_string(),
+        )?)),
+    }
 }

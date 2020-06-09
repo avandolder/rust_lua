@@ -27,6 +27,7 @@ pub enum Type {
     ValueHasNoLength,
     UnresolvableExpression,
     InvalidArguments,
+    Assertion(String),
 }
 
 pub use Type::*;

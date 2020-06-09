@@ -55,6 +55,7 @@ impl Interpreter {
     pub fn new(args: Vec<Value>) -> Self {
         // Register global functions.
         let globals: &[(String, Handle)] = &[
+            native!("assert", assert),
             native!("print", print),
             native!("type", value_type),
         ];
