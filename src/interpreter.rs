@@ -57,6 +57,8 @@ impl Interpreter {
         let globals: &[(String, Handle)] = &[
             native!("assert", assert),
             native!("print", print),
+            native!("tonumber", tonumber),
+            native!("tostring", tostring),
             native!("type", value_type),
         ];
 
