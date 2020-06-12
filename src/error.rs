@@ -24,6 +24,7 @@ pub enum Type {
     ValueNotValidNumber,
     ValueNotValidString,
     ValueNotCallable,
+    ValueNotTable,
     ValueHasNoLength,
     UnresolvableExpression,
     InvalidArguments,

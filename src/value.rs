@@ -74,8 +74,8 @@ impl LuaFunction {
 pub struct Table(HashMap<Value, Handle>);
 
 impl Table {
-    pub fn new(fields: Vec<(Value, Handle)>) -> Self {
-        Self(fields.into_iter().collect())
+    pub fn new(fields: Vec<(Value, Handle)>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self(fields.into_iter().collect())))
     }
 
     pub fn get_handle(&mut self, key: Value) -> Handle {
@@ -168,6 +168,14 @@ impl Value {
             todo!("add support for tables with callable metamethods")
         } else {
             LuaError::new(error::ValueNotCallable)
+        }
+    }
+
+    pub fn as_table(&self) -> LuaResult<Rc<RefCell<Table>>> {
+        if let Value::Table(table) = self {
+            Ok(table.clone())
+        } else {
+            LuaError::new(error::ValueNotTable)
         }
     }
 

@@ -60,6 +60,8 @@ impl Interpreter {
             native!("tonumber", tonumber),
             native!("tostring", tostring),
             native!("type", value_type),
+            native!("pack", pack),
+            native!("unpack", unpack),
         ];
 
         Interpreter {
@@ -107,7 +109,7 @@ impl Interpreter {
                 let mut fields: Vec<_> = single_fields;
                 fields.append(&mut pair_fields);
                 fields.dedup_by_key(|(key, _)| key.clone());
-                Value::Table(Rc::new(RefCell::new(Table::new(fields))))
+                Value::Table(Table::new(fields))
             }
 
             Expr::BinaryOp(op, lhs, rhs) => {

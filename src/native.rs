@@ -1,6 +1,6 @@
 use crate::error::{self, LuaError, LuaResult};
 use crate::interpreter::Interpreter;
-use crate::value::Value;
+use crate::value::{Handle, Table, Value};
 
 pub fn print(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
     args.iter().take(1).for_each(|v| print!("{}", v));
@@ -50,7 +50,8 @@ pub fn assert(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
 
 pub fn tonumber(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
     Ok(match args.as_slice() {
-        [Value::String(s), b] => Value::Number(i64::from_str_radix(s, b.as_number()? as u32).unwrap() as f64),
+        [Value::String(s), b] =>
+            Value::Number(i64::from_str_radix(s, b.as_number()? as u32).unwrap() as f64),
         [n @ Value::Number(_), _] => n.clone(),
         [e] => e.as_number().map_or(Value::Nil, Value::Number),
         _ => return LuaError::new(error::InvalidArguments),
@@ -62,4 +63,34 @@ pub fn tostring(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
         [e] => Ok(Value::String(e.as_string()?)),
         _ => LuaError::new(error::InvalidArguments),
     }
+}
+
+pub fn pack(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
+    let fields = args
+        .into_iter()
+        .enumerate()
+        .map(|(i, v)| (Value::Number(i as f64 + 1.0), Handle::from_value(v)))
+        .collect();
+    Ok(Value::Table(Table::new(fields)))
+}
+
+pub fn unpack(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
+    if args.is_empty() {
+        return LuaError::new(error::InvalidArguments);
+    }
+
+    let table = args[0].as_table()?;
+    let table = table.borrow();
+    let (i, j) = match args.len() {
+        3 => (args[1].as_number()? as usize, args[2].as_number()? as usize),
+        2 => (args[1].as_number()? as usize, table.length()),
+        1 => (1, table.length()),
+        _ => return LuaError::new(error::InvalidArguments),
+    };
+
+    Ok(Value::List(
+        (i..=j)
+            .map(|i| table.get_value(&Value::Number(i as f64)))
+            .collect(),
+    ))
 }
