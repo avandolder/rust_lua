@@ -128,20 +128,20 @@ pub enum Value {
 impl Value {
     pub fn as_bool(&self) -> bool {
         match self {
-            Value::Nil | Value::Bool(false) => false,
-            Value::List(list) => list.get(0).map_or(false, |v| v.as_bool()),
+            Self::Nil | Self::Bool(false) => false,
+            Self::List(list) => list.get(0).map_or(false, |v| v.as_bool()),
             _ => true,
         }
     }
 
     pub fn as_number(&self) -> LuaResult<f64> {
         match self {
-            Value::Number(value) => Ok(*value),
-            Value::String(value) => value.parse::<f64>().map_err(|_| LuaError {
+            Self::Number(value) => Ok(*value),
+            Self::String(value) => value.parse::<f64>().map_err(|_| LuaError {
                 ty: error::ParseNumberError,
                 line: 0,
             }),
-            Value::List(list) => list.get(0).map_or_else(
+            Self::List(list) => list.get(0).map_or_else(
                 || LuaError::new(error::ValueNotValidNumber),
                 |v| v.as_number()
             ),
@@ -151,9 +151,9 @@ impl Value {
 
     pub fn as_string(&self) -> LuaResult<String> {
         match self {
-            Value::Number(value) => Ok(value.to_string()),
-            Value::String(value) => Ok(value.clone()),
-            Value::List(list) => list.get(0).map_or_else(
+            Self::Number(value) => Ok(value.to_string()),
+            Self::String(value) => Ok(value.clone()),
+            Self::List(list) => list.get(0).map_or_else(
                 || LuaError::new(error::ValueNotValidString),
                 |v| v.as_string()
             ),
@@ -162,9 +162,9 @@ impl Value {
     }
 
     pub fn as_function(&self) -> LuaResult<Rc<RefCell<Function>>> {
-        if let Value::Function(func) = self {
+        if let Self::Function(func) = self {
             Ok(func.clone())
-        } else if let Value::Table(_) = self {
+        } else if let Self::Table(_) = self {
             todo!("add support for tables with callable metamethods")
         } else {
             LuaError::new(error::ValueNotCallable)
@@ -172,15 +172,22 @@ impl Value {
     }
 
     pub fn as_table(&self) -> LuaResult<Rc<RefCell<Table>>> {
-        if let Value::Table(table) = self {
+        if let Self::Table(table) = self {
             Ok(table.clone())
         } else {
             LuaError::new(error::ValueNotTable)
         }
     }
 
+    pub fn drop_list(self) -> Self {
+        match self {
+            Self::List(list) => list.into_iter().next().unwrap_or(Self::Nil),
+            value => value,
+        }
+    }
+
     pub fn get_handle(&self, key: Value) -> LuaResult<Handle> {
-        if let Value::Table(table) = self {
+        if let Self::Table(table) = self {
             // TODO: support for index metamethods.
             Ok(table.borrow_mut().get_handle(key))
         } else {
@@ -188,8 +195,8 @@ impl Value {
         }
     }
 
-    pub fn get_value(&self, key: &Value) -> LuaResult<Value> {
-        if let Value::Table(table) = self {
+    pub fn get_value(&self, key: &Value) -> LuaResult<Self> {
+        if let Self::Table(table) = self {
             // TODO: support for index metamethods.
             Ok(table.borrow_mut().get_value(key))
         } else {
@@ -199,8 +206,8 @@ impl Value {
 
     pub fn length(&self) -> LuaResult<usize> {
         match self {
-            Value::String(value) => Ok(value.len()),
-            Value::Table(value) => Ok(value.borrow().length()),
+            Self::String(value) => Ok(value.len()),
+            Self::Table(value) => Ok(value.borrow().length()),
             // TODO: add support for length metamethods.
             _ => LuaError::new(error::ValueHasNoLength),
         }

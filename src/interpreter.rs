@@ -1,6 +1,3 @@
-use std::cell::{RefCell};
-use std::rc::Rc;
-
 use im::HashMap;
 
 use crate::ast::{BinaryOp, Expr, Field, FunctionArity, FunctionType, Stmt, UnaryOp};

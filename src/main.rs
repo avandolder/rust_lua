@@ -38,7 +38,7 @@ fn main() -> io::Result<()> {
     let args = std::env::args().skip(1).map(Value::String).collect();
     let mut interpreter = Interpreter::new(args);
 
-    if let Some("-f") = std::env::args().nth(1).as_ref().map(|s| s.as_str()) {
+    if let Some("-f") = std::env::args().nth(1).as_deref() {
         let src = fs::read_to_string(std::env::args().nth(2).unwrap())?;
         interpret_source(&mut interpreter, &src);
     } else {
