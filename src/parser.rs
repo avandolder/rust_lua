@@ -29,7 +29,7 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     fn consume(&mut self) -> LuaResult<Token> {
         self.tokens
             .next()
-            .map_or_else(|| LuaError::new(error::ExpectedEOF), |result| result)
+            .map_or_else(|| LuaError::new(error::UnexpectedEOF), |result| result)
     }
 
     fn expect(&mut self, expected: token::Type) -> LuaResult<Token> {

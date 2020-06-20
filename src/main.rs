@@ -2,9 +2,9 @@ use std::fs;
 use std::io::{self, Write};
 
 use rust_lua::{
+    error::{self, LuaError},
     interpreter::{Branch, Interpreter},
-    lexer,
-    parser,
+    lexer, parser,
     value::Value,
 };
 
@@ -14,15 +14,17 @@ fn read_line() -> io::Result<String> {
     Ok(line)
 }
 
-fn interpret_source(interpreter: &mut Interpreter, src: &str) {
+fn interpret_source(interpreter: &mut Interpreter, src: &str) -> bool {
     let src = src.chars().collect::<Vec<_>>();
     let tokens = lexer::tokenize(&src);
 
     let ast = match parser::parse(tokens) {
         Ok(ast) => ast,
+        Err(LuaError { ty: error::UnexpectedEndOfInput(_), .. })
+        | Err(LuaError { ty: error::UnexpectedEOF, .. }) => return true,
         err => {
             println!("parsing error: {:?}", err);
-            return;
+            return false;
         }
     };
 
@@ -32,6 +34,8 @@ fn interpret_source(interpreter: &mut Interpreter, src: &str) {
         Err(Branch::Throw(err)) => println!("error: {:?}", err),
         Err(Branch::Break) => println!("error: top-level break"),
     }
+
+    false
 }
 
 fn main() -> io::Result<()> {
@@ -48,7 +52,10 @@ fn main() -> io::Result<()> {
     loop {
         print!("> ");
         io::stdout().flush()?;
-        let src = read_line()?;
-        interpret_source(&mut interpreter, &src);
+        let mut src = read_line()?;
+
+        while interpret_source(&mut interpreter, &src) {
+            src.push_str(read_line()?.as_str());
+        }
     }
 }
