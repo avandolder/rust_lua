@@ -127,31 +127,47 @@ impl Interpreter {
             }
 
             Expr::BinaryOp(op, lhs, rhs) => {
-                let (lhs, rhs) = (self.evaluate(lhs)?, self.evaluate(rhs)?);
+                let lhs = self.evaluate(lhs)?;
 
-                // If either operand is a table, do a metamethod lookup.
-                if let Value::Table(_lhs) = lhs {
-                    todo!()
-                } else if let Value::Table(_rhs) = rhs {
-                    todo!()
-                }
-
+                // Handle short-circuiting operations first.
                 match op {
-                    BinaryOp::Add => Value::Number(lhs.as_number()? + rhs.as_number()?),
-                    BinaryOp::Sub => Value::Number(lhs.as_number()? - rhs.as_number()?),
-                    BinaryOp::Mul => Value::Number(lhs.as_number()? * rhs.as_number()?),
-                    BinaryOp::Div => Value::Number(lhs.as_number()? / rhs.as_number()?),
-                    BinaryOp::Mod => Value::Number(lhs.as_number()? % rhs.as_number()?),
-                    BinaryOp::Pow => Value::Number(lhs.as_number()?.powf(rhs.as_number()?)),
-                    BinaryOp::Concat => Value::String(lhs.as_string()? + &rhs.as_string()?),
-                    BinaryOp::And => if lhs.as_bool() { rhs } else { lhs },
-                    BinaryOp::Or => if lhs.as_bool() { lhs } else { rhs },
-                    BinaryOp::EQ => Value::Bool(lhs == rhs),
-                    BinaryOp::NEQ => Value::Bool(lhs != rhs),
-                    BinaryOp::GTE => Value::Bool(lhs >= rhs),
-                    BinaryOp::LTE => Value::Bool(lhs <= rhs),
-                    BinaryOp::GT => Value::Bool(lhs > rhs),
-                    BinaryOp::LT => Value::Bool(lhs < rhs),
+                    BinaryOp::And => if lhs.as_bool() {
+                        self.evaluate(rhs)?
+                    } else {
+                        lhs
+                    },
+                    BinaryOp::Or => if lhs.as_bool() {
+                        lhs
+                    } else {
+                        self.evaluate(rhs)?
+                    },
+                    op => {
+                        let rhs = self.evaluate(rhs)?;
+
+                        // If either operand is a table, do a metamethod lookup.
+                        if let Value::Table(_lhs) = lhs {
+                            todo!()
+                        } else if let Value::Table(_rhs) = rhs {
+                            todo!()
+                        }
+
+                        match op {
+                            BinaryOp::Add => Value::Number(lhs.as_number()? + rhs.as_number()?),
+                            BinaryOp::Sub => Value::Number(lhs.as_number()? - rhs.as_number()?),
+                            BinaryOp::Mul => Value::Number(lhs.as_number()? * rhs.as_number()?),
+                            BinaryOp::Div => Value::Number(lhs.as_number()? / rhs.as_number()?),
+                            BinaryOp::Mod => Value::Number(lhs.as_number()? % rhs.as_number()?),
+                            BinaryOp::Pow => Value::Number(lhs.as_number()?.powf(rhs.as_number()?)),
+                            BinaryOp::Concat => Value::String(lhs.as_string()? + &rhs.as_string()?),
+                            BinaryOp::EQ => Value::Bool(lhs == rhs),
+                            BinaryOp::NEQ => Value::Bool(lhs != rhs),
+                            BinaryOp::GTE => Value::Bool(lhs >= rhs),
+                            BinaryOp::LTE => Value::Bool(lhs <= rhs),
+                            BinaryOp::GT => Value::Bool(lhs > rhs),
+                            BinaryOp::LT => Value::Bool(lhs < rhs),
+                            _ => unreachable!(),
+                        }
+                    }
                 }
             }
 
