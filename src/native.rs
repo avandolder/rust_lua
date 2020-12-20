@@ -1,3 +1,5 @@
+use std::process;
+
 use crate::error::{self, LuaError, LuaResult};
 use crate::interpreter::Interpreter;
 use crate::value::{Handle, Table, Value};
@@ -93,4 +95,8 @@ pub fn unpack(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
             .map(|i| table.get_value(&Value::Number(i as f64)))
             .collect(),
     ))
+}
+
+pub fn exit(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
+    process::exit(args.first().map_or(Ok(0), |v| Ok(v.as_number()? as i32))?)
 }

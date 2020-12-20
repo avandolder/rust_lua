@@ -48,6 +48,22 @@ macro_rules! native {
     };
 }
 
+macro_rules! table {
+    ($e:expr, $($k:expr => $v:ident),*) => {
+        (
+            $e.to_string(),
+            Handle::from_value(Value::Table(Table::new(vec![
+                $(
+                    (
+                        Value::String($k.to_string()),
+                        Handle::from_value(Function::from_native(native::$v)),
+                    ),
+                )*
+            ])))
+        )
+    };
+}
+
 impl Interpreter {
     pub fn new(args: Vec<Value>) -> Self {
         // Register global functions.
@@ -59,6 +75,7 @@ impl Interpreter {
             native!("type", value_type),
             native!("pack", pack),
             native!("unpack", unpack),
+            table!("os", "exit" => exit),
         ];
 
         Interpreter {
@@ -352,8 +369,8 @@ impl Interpreter {
 
     fn execute_block(&mut self, stmts: &[Stmt]) -> Result<(), Branch> {
         let prev_scope = self.scope.clone();
-        let branch = stmts.iter().try_for_each(|stmt| self.execute(stmt));        
-        self.scope = prev_scope;        
+        let branch = stmts.iter().try_for_each(|stmt| self.execute(stmt));
+        self.scope = prev_scope;
         branch
     }
 
@@ -404,7 +421,7 @@ impl Interpreter {
 
         self.arguments = prev_arguments;
         self.scope = prev_scope;
-        
+
         Ok(result)
     }
 }
