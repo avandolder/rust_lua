@@ -203,12 +203,7 @@ impl Interpreter {
                 let key = self.evaluate(key)?;
                 table.get_value(&key)?
             }
-            Expr::Member(expr, name) => {
-                let table = self.evaluate(expr)?;
-                let key = Value::String(name.to_string());
-                table.get_value(&key)?
-            }
-            Expr::Method(expr, name) => {
+            Expr::Member(expr, name) | Expr::Method(expr, name) => {
                 let table = self.evaluate(expr)?;
                 let key = Value::String(name.to_string());
                 table.get_value(&key)?
@@ -234,12 +229,7 @@ impl Interpreter {
                 let key = self.evaluate(key)?;
                 table.get_handle(key)?
             }
-            Expr::Member(expr, name) => {
-                let table = self.evaluate(expr)?;
-                let key = Value::String(name.to_string());
-                table.get_handle(key)?
-            }
-            Expr::Method(expr, name) => {
+            Expr::Member(expr, name) | Expr::Method(expr, name) => {
                 let table = self.evaluate(expr)?;
                 let key = Value::String(name.to_string());
                 table.get_handle(key)?
