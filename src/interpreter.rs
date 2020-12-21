@@ -131,16 +131,10 @@ impl Interpreter {
 
                 // Handle short-circuiting operations first.
                 match op {
-                    BinaryOp::And => if lhs.as_bool() {
-                        self.evaluate(rhs)?
-                    } else {
-                        lhs
-                    },
-                    BinaryOp::Or => if lhs.as_bool() {
-                        lhs
-                    } else {
-                        self.evaluate(rhs)?
-                    },
+                    BinaryOp::And if lhs.as_bool() => self.evaluate(rhs)?,
+                    BinaryOp::And => lhs,
+                    BinaryOp::Or if lhs.as_bool() => lhs,
+                    BinaryOp::Or => self.evaluate(rhs)?,
                     op => {
                         let rhs = self.evaluate(rhs)?;
 
@@ -401,7 +395,7 @@ impl Interpreter {
         };
 
         let prev_scope = self.scope.clone();
-        self.scope = scope.clone();
+        self.scope = scope;
 
         let mut args = args.into_iter();
         let mut params = params.iter();

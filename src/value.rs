@@ -5,8 +5,6 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use im;
-
 use crate::ast::{FunctionArity, FunctionType, Name, Stmt};
 use crate::error::{self, LuaError, LuaResult};
 use crate::interpreter::Interpreter;
@@ -300,10 +298,7 @@ impl Handle {
     }
 
     pub fn is_table(&self) -> bool {
-        match *self.0.borrow() {
-            Value::Table(_) => true,
-            _ => false,
-        }
+        matches!(*self.0.borrow(), Value::Table(_))
     }
 
     pub fn value(&self) -> Value {
