@@ -87,21 +87,33 @@ impl Table {
     pub fn set(&mut self, key: Value, value: Value) {
         match (self.0.get(&key), value) {
             (None, Value::Nil) => (),
-            (Some(_), Value::Nil) => { self.0.remove(&key); }
-            (_, value) => { self.0.insert(key, Handle::from_value(value)); }
+            (Some(_), Value::Nil) => {
+                self.0.remove(&key);
+            }
+            (_, value) => {
+                self.0.insert(key, Handle::from_value(value));
+            }
         }
     }
 
     pub fn length(&self) -> usize {
-        (1..).take_while(|&i| self.0.contains_key(&Value::Number(i as f64))).count()
+        (1..)
+            .take_while(|&i| self.0.contains_key(&Value::Number(i as f64)))
+            .count()
     }
 }
 
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
-        self.0.iter().take(1).try_for_each(|(key, value)| write!(f, "[{}] = {}", key, value))?;
-        self.0.iter().skip(1).try_for_each(|(key, value)| write!(f, ", [{}] = {}", key, value))?;
+        self.0
+            .iter()
+            .take(1)
+            .try_for_each(|(key, value)| write!(f, "[{}] = {}", key, value))?;
+        self.0
+            .iter()
+            .skip(1)
+            .try_for_each(|(key, value)| write!(f, ", [{}] = {}", key, value))?;
         write!(f, "}}")
     }
 }
@@ -141,7 +153,7 @@ impl Value {
             }),
             Self::List(list) => list.get(0).map_or_else(
                 || LuaError::new(error::ValueNotValidNumber),
-                |v| v.as_number()
+                |v| v.as_number(),
             ),
             _ => LuaError::new(error::ValueNotValidNumber),
         }
@@ -153,7 +165,7 @@ impl Value {
             Self::String(value) => Ok(value.clone()),
             Self::List(list) => list.get(0).map_or_else(
                 || LuaError::new(error::ValueNotValidString),
-                |v| v.as_string()
+                |v| v.as_string(),
             ),
             _ => LuaError::new(error::ValueNotValidString),
         }
@@ -247,8 +259,12 @@ impl fmt::Display for Value {
             Value::String(value) => write!(f, "\"{}\"", value),
             Value::Table(table) => write!(f, "{}", table.borrow()),
             Value::List(list) => {
-                list.iter().take(1).try_for_each(|value| write!(f, "{}", value))?;
-                list.iter().skip(1).try_for_each(|value| write!(f, ", {}", value))
+                list.iter()
+                    .take(1)
+                    .try_for_each(|value| write!(f, "{}", value))?;
+                list.iter()
+                    .skip(1)
+                    .try_for_each(|value| write!(f, ", {}", value))
             }
             Value::Thread | Value::Userdata => todo!(),
         }

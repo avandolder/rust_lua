@@ -3,7 +3,7 @@ use im::HashMap;
 use crate::ast::{BinaryOp, Expr, Field, FunctionArity, FunctionType, Stmt, UnaryOp};
 use crate::error::{self, LuaError, LuaResult};
 use crate::native;
-use crate::value::{Function, LuaFunction, Handle, Table, Value};
+use crate::value::{Function, Handle, LuaFunction, Table, Value};
 
 #[derive(Clone, Debug)]
 pub struct Interpreter {
@@ -101,23 +101,32 @@ impl Interpreter {
             )),
 
             Expr::Table(fields) => {
-                let single_fields = fields.iter()
+                let single_fields = fields
+                    .iter()
                     .filter_map(Field::as_single)
                     .enumerate()
-                    .map(|(index, value)| Ok((
-                        Value::Number(index as f64 + 1.0),
-                        Handle::from_value(self.evaluate(value)?),
-                    )))
+                    .map(|(index, value)| {
+                        Ok((
+                            Value::Number(index as f64 + 1.0),
+                            Handle::from_value(self.evaluate(value)?),
+                        ))
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
-                let mut pair_fields = fields.iter()
+                let mut pair_fields = fields
+                    .iter()
                     .rev()
                     .filter_map(Field::as_pair)
-                    .map(|(key, value)| Ok(({
-                        match key {
-                            Expr::Name(name) => Value::String(name.to_string()),
-                            key => self.evaluate(key)?,
-                        }
-                    }, Handle::from_value(self.evaluate(value)?))))
+                    .map(|(key, value)| {
+                        Ok((
+                            {
+                                match key {
+                                    Expr::Name(name) => Value::String(name.to_string()),
+                                    key => self.evaluate(key)?,
+                                }
+                            },
+                            Handle::from_value(self.evaluate(value)?),
+                        ))
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
 
                 let mut fields: Vec<_> = single_fields;
@@ -176,18 +185,22 @@ impl Interpreter {
                 }
             }
 
-            Expr::Vararg => if let Some(ref args) = self.arguments {
-                Value::List(args.clone())
-            } else {
-                return LuaError::new(error::VarargOutsideOfVarargFunction);
+            Expr::Vararg => {
+                if let Some(ref args) = self.arguments {
+                    Value::List(args.clone())
+                } else {
+                    return LuaError::new(error::VarargOutsideOfVarargFunction);
+                }
             }
 
-            Expr::Name(name) => if let Some(handle) = self.scope.get(name.as_str()) {
-                handle.value()
-            } else if let Some(handle) = self.globals.get(name.as_str()) {
-                handle.value()
-            } else {
-                Value::Nil
+            Expr::Name(name) => {
+                if let Some(handle) = self.scope.get(name.as_str()) {
+                    handle.value()
+                } else if let Some(handle) = self.globals.get(name.as_str()) {
+                    handle.value()
+                } else {
+                    Value::Nil
+                }
             }
 
             Expr::Call(expr, args) => self.call_function(expr, args)?,
@@ -265,7 +278,9 @@ impl Interpreter {
                 let end = self.evaluate(end)?.as_number()?;
                 let step = step
                     .as_ref()
-                    .map::<Result<f64, LuaError>, _>(|expr| Ok(self.evaluate(&expr)?.as_number()?))
+                    .map::<Result<f64, LuaError>, _>(|expr| {
+                        Ok(self.evaluate(&expr)?.as_number()?)
+                    })
                     .unwrap_or(Ok(1.0))?;
                 let index = Handle::from_value(self.evaluate(start)?);
                 self.scope.insert(index_name.to_string(), index.clone());
@@ -338,7 +353,7 @@ impl Interpreter {
                 exprs
                     .iter()
                     .map(|expr| self.evaluate(expr))
-                    .collect::<Result<Vec<_>, _>>()?
+                    .collect::<Result<Vec<_>, _>>()?,
             )?,
 
             Stmt::Until(cond, body) => {
@@ -357,10 +372,12 @@ impl Interpreter {
                     self.scope = prev_scope;
                 }
             }
-            Stmt::While(cond, body) => while self.evaluate(cond)?.as_bool() {
-                match self.execute_block(body) {
-                    Err(Branch::Break) => return Ok(()),
-                    br => br?,
+            Stmt::While(cond, body) => {
+                while self.evaluate(cond)?.as_bool() {
+                    match self.execute_block(body) {
+                        Err(Branch::Break) => return Ok(()),
+                        br => br?,
+                    }
                 }
             }
         }
@@ -400,10 +417,12 @@ impl Interpreter {
         let mut args = args.into_iter();
         let mut params = params.iter();
         while let (Some(param), Some(arg)) = (params.next(), args.next()) {
-            self.scope.insert(param.to_string(), Handle::from_value(arg));
+            self.scope
+                .insert(param.to_string(), Handle::from_value(arg));
         }
         for param in params {
-            self.scope.insert(param.to_string(), Handle::from_value(Value::Nil));
+            self.scope
+                .insert(param.to_string(), Handle::from_value(Value::Nil));
         }
 
         let prev_arguments = self.arguments.take();

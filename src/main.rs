@@ -20,8 +20,14 @@ fn interpret_source(interpreter: &mut Interpreter, src: &str) -> bool {
 
     let ast = match parser::parse(tokens) {
         Ok(ast) => ast,
-        Err(LuaError { ty: error::UnexpectedEndOfInput(_), .. })
-        | Err(LuaError { ty: error::UnexpectedEOF, .. }) => return true,
+        Err(LuaError {
+            ty: error::UnexpectedEndOfInput(_),
+            ..
+        })
+        | Err(LuaError {
+            ty: error::UnexpectedEOF,
+            ..
+        }) => return true,
         err => {
             println!("parsing error: {:?}", err);
             return false;

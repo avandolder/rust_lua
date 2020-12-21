@@ -68,6 +68,10 @@ pub struct Token<'a> {
 impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let raw_string = self.raw.iter().collect::<String>();
-        write!(f, "Token {:?} '{}' on line {}", self.ty, raw_string, self.line)
+        write!(
+            f,
+            "Token {:?} '{}' on line {}",
+            self.ty, raw_string, self.line
+        )
     }
 }

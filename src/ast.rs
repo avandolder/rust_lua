@@ -165,11 +165,13 @@ impl Field {
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Field::Pair(key, value) => if let Expr::Name(name) = key {
-                write!(f, "{} = {}", name.0, value)
-            } else {
-                write!(f, "[{}] = {}", key, value)
-            },
+            Field::Pair(key, value) => {
+                if let Expr::Name(name) = key {
+                    write!(f, "{} = {}", name.0, value)
+                } else {
+                    write!(f, "[{}] = {}", key, value)
+                }
+            }
             Field::Single(value) => write!(f, "{}", value),
         }
     }
@@ -220,8 +222,14 @@ impl fmt::Display for Expr {
             Expr::UnaryOp(op, e) => write!(f, "{}{}", op, e),
             Expr::Table(table) => {
                 write!(f, "{{")?;
-                table.first().iter().try_for_each(|field| write!(f, "{}", field))?;
-                table.iter().skip(1).try_for_each(|field| write!(f, ", {}", field))?;
+                table
+                    .first()
+                    .iter()
+                    .try_for_each(|field| write!(f, "{}", field))?;
+                table
+                    .iter()
+                    .skip(1)
+                    .try_for_each(|field| write!(f, ", {}", field))?;
                 write!(f, "}}")
             }
             Expr::String(s) => write!(f, "{}", s),
@@ -233,16 +241,26 @@ impl fmt::Display for Expr {
             Expr::Index(e, index) => write!(f, "{}[{}]", e, index),
             Expr::Call(e, args) => {
                 write!(f, "{}(", e)?;
-                args.first().iter().try_for_each(|arg| write!(f, "{}", arg))?;
-                args.iter().skip(1).try_for_each(|arg| write!(f, ", {}", arg))?;
+                args.first()
+                    .iter()
+                    .try_for_each(|arg| write!(f, "{}", arg))?;
+                args.iter()
+                    .skip(1)
+                    .try_for_each(|arg| write!(f, ", {}", arg))?;
                 write!(f, ")")
             }
             Expr::Member(e, name) => write!(f, "{}.{}", e, name.0),
             Expr::Method(e, name) => write!(f, "{}:{}", e, name.0),
             Expr::Function(params, arity, body) => {
                 write!(f, "function(")?;
-                params.iter().take(1).try_for_each(|param| write!(f, "{}", param))?;
-                params.iter().skip(1).try_for_each(|param| write!(f, ", {}", param))?;
+                params
+                    .iter()
+                    .take(1)
+                    .try_for_each(|param| write!(f, "{}", param))?;
+                params
+                    .iter()
+                    .skip(1)
+                    .try_for_each(|param| write!(f, ", {}", param))?;
 
                 if let FunctionArity::Variable = arity {
                     if params.is_empty() {
@@ -253,7 +271,8 @@ impl fmt::Display for Expr {
                 }
                 writeln!(f, ")")?;
 
-                body.iter().try_for_each(|stmt| writeln!(f, "{}", stmt.format()))?;
+                body.iter()
+                    .try_for_each(|stmt| writeln!(f, "{}", stmt.format()))?;
                 write!(f, "end")
             }
         }
@@ -355,7 +374,10 @@ impl Stmt {
                     .map(|expr| format!(", {}", expr.to_string()))
                     .unwrap_or_default();
                 let block = format_block(block, level + 1);
-                format!("for {} = {}, {}{} do\n{}{}end", index, start, end, step, block, indent)
+                format!(
+                    "for {} = {}, {}{} do\n{}{}end",
+                    index, start, end, step, block, indent
+                )
             }
             ForIn(indexes, exprs, block) => {
                 let indexes = join(indexes, ", ");
@@ -385,10 +407,18 @@ impl Stmt {
                 }
 
                 if !block.is_empty() {
-                    else_block = format!("{}{}else\n{}", else_block, indent, format_block(block, level + 1));
+                    else_block = format!(
+                        "{}{}else\n{}",
+                        else_block,
+                        indent,
+                        format_block(block, level + 1)
+                    );
                 }
 
-                format!("if {} then\n{}{}{}end", cond, then_block, else_block, indent)
+                format!(
+                    "if {} then\n{}{}{}end",
+                    cond, then_block, else_block, indent
+                )
             }
             LocalAssign(names, exprs) => {
                 let names = join(names, ", ");
@@ -402,7 +432,10 @@ impl Stmt {
             LocalFunction(name, params, arity, block) => {
                 let params = format_parameters(params, *arity);
                 let block = format_block(block, level + 1);
-                format!("local function {}({})\n{}{}end", name, params, block, indent)
+                format!(
+                    "local function {}({})\n{}{}end",
+                    name, params, block, indent
+                )
             }
             Return(exprs) => {
                 let exprs = join(exprs, ", ");
@@ -454,7 +487,10 @@ end
             vec![Stmt::If(
                 Expr::Nil,
                 vec![Stmt::Return(vec![Expr::Table(vec![])])],
-                vec![Stmt::LocalAssign(vec![Name("a".to_owned())], vec![Expr::Number(1.0)])],
+                vec![Stmt::LocalAssign(
+                    vec![Name("a".to_owned())],
+                    vec![Expr::Number(1.0)],
+                )],
             )],
         );
 

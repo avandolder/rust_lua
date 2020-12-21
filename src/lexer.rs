@@ -121,17 +121,23 @@ impl<'a> Lexer<'a> {
                         'a' | 'b' | 'n' | 'r' | 't' | 'v' | '\\' | '"' | '\'' => (),
                         '\n' => self.line += 1,
                         d if d.is_ascii_digit() => (),
-                        _ => return Err(LuaError {
-                            ty: error::InvalidEscapeSequence(self.src[length..length + 2].iter().collect()),
-                            line: self.line,
-                        }),
+                        _ => {
+                            return Err(LuaError {
+                                ty: error::InvalidEscapeSequence(
+                                    self.src[length..length + 2].iter().collect(),
+                                ),
+                                line: self.line,
+                            })
+                        }
                     }
                     length += 2;
                 }
-                '\n' => return Err(LuaError {
-                    ty: error::UnexpectedNewlineInString,
-                    line: self.line,
-                }),
+                '\n' => {
+                    return Err(LuaError {
+                        ty: error::UnexpectedNewlineInString,
+                        line: self.line,
+                    })
+                }
                 _ => length += 1,
             }
         }
@@ -163,10 +169,12 @@ impl<'a> Lexer<'a> {
                 }
                 length += self.scan_digits(length);
             }
-            c if c.is_alphanumeric() => return Err(LuaError {
-                ty: error::MalformedNumber,
-                line: self.line,
-            }),
+            c if c.is_alphanumeric() => {
+                return Err(LuaError {
+                    ty: error::MalformedNumber,
+                    line: self.line,
+                })
+            }
             _ => (),
         }
 
@@ -181,7 +189,9 @@ impl<'a> Lexer<'a> {
     }
 }
 
-pub fn tokenize<'a>(src: &'a [char]) -> iter::Peekable<impl Iterator<Item = LuaResult<Token>> + 'a> {
+pub fn tokenize<'a>(
+    src: &'a [char],
+) -> iter::Peekable<impl Iterator<Item = LuaResult<Token>> + 'a> {
     let mut lexer: Lexer<'a> = Lexer { src, line: 1 };
     iter::from_fn(move || match lexer.next_token() {
         Ok(Token { ty: token::EOF, .. }) => None,

@@ -52,8 +52,9 @@ pub fn assert(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
 
 pub fn tonumber(_: &mut Interpreter, args: Vec<Value>) -> LuaResult<Value> {
     Ok(match args.as_slice() {
-        [Value::String(s), b] =>
-            Value::Number(i64::from_str_radix(s, b.as_number()? as u32).unwrap() as f64),
+        [Value::String(s), b] => {
+            Value::Number(i64::from_str_radix(s, b.as_number()? as u32).unwrap() as f64)
+        }
         [n @ Value::Number(_), _] => n.clone(),
         [e] => e.as_number().map_or(Value::Nil, Value::Number),
         _ => return LuaError::new(error::InvalidArguments),

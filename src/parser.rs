@@ -15,7 +15,8 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn must_peek(&mut self) -> LuaResult<Token<'a>> {
-        self.peek().map_or_else(|| LuaError::new(error::UnexpectedEOF), Ok)
+        self.peek()
+            .map_or_else(|| LuaError::new(error::UnexpectedEOF), Ok)
     }
 
     fn peek_type(&mut self) -> Option<token::Type> {
@@ -23,7 +24,8 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
     }
 
     fn must_peek_type(&mut self) -> LuaResult<token::Type> {
-        self.peek().map_or_else(|| LuaError::new(error::UnexpectedEOF), |tok| Ok(tok.ty))
+        self.peek()
+            .map_or_else(|| LuaError::new(error::UnexpectedEOF), |tok| Ok(tok.ty))
     }
 
     fn consume(&mut self) -> LuaResult<Token> {
@@ -36,7 +38,10 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
         match self.peek_type() {
             Some(ty) if ty == expected => self.consume(),
             Some(_) => self.consume().and_then(|Token { ty, line, .. }| {
-                LuaError::new(error::ExpectingToken(expected, Token { ty, line, raw: &[] }))
+                LuaError::new(error::ExpectingToken(
+                    expected,
+                    Token { ty, line, raw: &[] },
+                ))
             }),
             None => LuaError::new(error::UnexpectedEndOfInput(expected)),
         }
@@ -57,16 +62,12 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
                     stmts.push(Stmt::Break);
                     true
                 }
-                Some(token::End)
-                | Some(token::Until)
-                | Some(token::ElseIf)
-                | Some(token::Else)
-                | None =>
-                    true,
+                Some(token::End) | Some(token::Until) | Some(token::ElseIf) | Some(token::Else)
+                | None => true,
                 Some(_) => {
                     stmts.push(self.parse_statement()?);
                     false
-                },
+                }
             };
 
             while let Some(token::Semicolon) = self.peek_type() {
@@ -156,13 +157,17 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
 
     fn parse_elseif(&mut self) -> LuaResult<Vec<Stmt>> {
         Ok(match self.consume()? {
-            Token { ty: token::ElseIf, .. } => {
+            Token {
+                ty: token::ElseIf, ..
+            } => {
                 let cond = self.parse_expression()?;
                 self.expect(token::Then)?;
                 let body = self.parse_block()?;
                 vec![Stmt::If(cond, body, self.parse_elseif()?)]
             }
-            Token { ty: token::Else, .. } => {
+            Token {
+                ty: token::Else, ..
+            } => {
                 let body = self.parse_block()?;
                 self.expect(token::End)?;
                 body
@@ -180,7 +185,9 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
         let name = self.expect(token::Name)?.try_into()?;
 
         match self.consume()? {
-            Token { ty: token::Comma, .. } => {
+            Token {
+                ty: token::Comma, ..
+            } => {
                 let mut names = vec![name];
                 names.extend(self.parse_name_list()?);
                 self.expect(token::In)?;
@@ -192,7 +199,9 @@ impl<'a, I: Iterator<Item = LuaResult<Token<'a>>>> Parser<'a, I> {
 
                 Ok(Stmt::ForIn(names, exprs, body))
             }
-            Token { ty: token::Assign, .. } => {
+            Token {
+                ty: token::Assign, ..
+            } => {
                 let start = Box::new(self.parse_expression()?);
                 self.expect(token::Comma)?;
                 let end = Box::new(self.parse_expression()?);
@@ -484,15 +493,18 @@ fn binary_precedence(op: token::Type) -> Option<(i32, i32)> {
 }
 
 pub fn parse<'a>(
-    tokens: Peekable<impl Iterator<Item = LuaResult<Token<'a>>>>
+    tokens: Peekable<impl Iterator<Item = LuaResult<Token<'a>>>>,
 ) -> LuaResult<Vec<Stmt>> {
     let mut parser = Parser { tokens };
     let stmts = parser.parse_block();
-    parser.tokens.next().map_or(stmts, |_| LuaError::new(error::ExpectedEOF))
+    parser
+        .tokens
+        .next()
+        .map_or(stmts, |_| LuaError::new(error::ExpectedEOF))
 }
 
 pub fn parse_expression<'a>(
-    tokens: Peekable<impl Iterator<Item = LuaResult<Token<'a>>>>
+    tokens: Peekable<impl Iterator<Item = LuaResult<Token<'a>>>>,
 ) -> LuaResult<Expr> {
     let mut parser = Parser { tokens };
     parser.parse_expression()
