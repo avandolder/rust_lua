@@ -165,13 +165,8 @@ impl Field {
 impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Field::Pair(key, value) => {
-                if let Expr::Name(name) = key {
-                    write!(f, "{} = {}", name.0, value)
-                } else {
-                    write!(f, "[{}] = {}", key, value)
-                }
-            }
+            Field::Pair(Expr::Name(name), value) => write!(f, "{} = {}", name, value),
+            Field::Pair(key, value) => write!(f, "[{}] = {}", key, value),
             Field::Single(value) => write!(f, "{}", value),
         }
     }
