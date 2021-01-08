@@ -148,10 +148,13 @@ impl Interpreter {
                         let rhs = self.evaluate(rhs)?;
 
                         // If either operand is a table, do a metamethod lookup.
-                        if let Value::Table(_lhs) = lhs {
-                            todo!()
-                        } else if let Value::Table(_rhs) = rhs {
-                            todo!()
+                        match (&lhs, &rhs) {
+                            (Value::Table(t), _o) | (_o, Value::Table(t))
+                                if t.borrow().meta.is_some() =>
+                            {
+                                todo!()
+                            }
+                            _ => (),
                         }
 
                         match op {

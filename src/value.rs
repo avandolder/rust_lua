@@ -69,36 +69,42 @@ impl LuaFunction {
 }
 
 #[derive(Clone, Debug)]
-pub struct Table(HashMap<Value, Handle>);
+pub struct Table {
+    pub data: HashMap<Value, Handle>,
+    pub meta: Option<Rc<RefCell<Table>>>,
+}
 
 impl Table {
     pub fn new(fields: Vec<(Value, Handle)>) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self(fields.into_iter().collect())))
+        Rc::new(RefCell::new(Self {
+            data: fields.into_iter().collect(),
+            meta: None,
+        }))
     }
 
     pub fn get_handle(&mut self, key: Value) -> Handle {
-        self.0.entry(key).or_default().clone()
+        self.data.entry(key).or_default().clone()
     }
 
     pub fn get_value(&self, key: &Value) -> Value {
-        self.0.get(key).map_or(Value::Nil, Handle::value)
+        self.data.get(key).map_or(Value::Nil, Handle::value)
     }
 
     pub fn set(&mut self, key: Value, value: Value) {
-        match (self.0.get(&key), value) {
+        match (self.data.get(&key), value) {
             (None, Value::Nil) => (),
             (Some(_), Value::Nil) => {
-                self.0.remove(&key);
+                self.data.remove(&key);
             }
             (_, value) => {
-                self.0.insert(key, Handle::from_value(value));
+                self.data.insert(key, Handle::from_value(value));
             }
         }
     }
 
     pub fn length(&self) -> usize {
         (1..)
-            .take_while(|&i| self.0.contains_key(&Value::Number(i as f64)))
+            .take_while(|&i| self.data.contains_key(&Value::Number(i as f64)))
             .count()
     }
 }
@@ -106,11 +112,11 @@ impl Table {
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{{")?;
-        self.0
+        self.data
             .iter()
             .take(1)
             .try_for_each(|(key, value)| write!(f, "[{}] = {}", key, value))?;
-        self.0
+        self.data
             .iter()
             .skip(1)
             .try_for_each(|(key, value)| write!(f, ", [{}] = {}", key, value))?;
@@ -172,12 +178,10 @@ impl Value {
     }
 
     pub fn as_function(&self) -> LuaResult<Rc<RefCell<Function>>> {
-        if let Self::Function(func) = self {
-            Ok(func.clone())
-        } else if let Self::Table(_) = self {
-            todo!("add support for tables with callable metamethods")
-        } else {
-            LuaError::new(error::ValueNotCallable)
+        match self {
+            Self::Function(func) => Ok(func.clone()),
+            Self::Table(_) => todo!("add support for tables with callable metamethods"),
+            _ => LuaError::new(error::ValueNotCallable),
         }
     }
 
